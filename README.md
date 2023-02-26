@@ -4,9 +4,9 @@
 ## make async operation better, it is like swrjs or react-query
 
 
-### createClearExpiredCache
+## createAsyncController
 ```ts
-import { createClearExpiredCache } from 'great-async';
+import { createAsyncController } from 'great-async';
 
 const getUserData = (id: string) => {
     return Promise.resolve({
@@ -16,7 +16,7 @@ const getUserData = (id: string) => {
     });
 }
 
-const getUserDataProxy = createClearExpiredCache(getUserData, {
+const getUserDataProxy = createAsyncController(getUserData, {
     /**
      * debounce time config. default value is -1 which means no debounce feature,
      * optional argument
@@ -63,4 +63,35 @@ getUserDataProxy('id-1'); // you can use it like the original getUserData functi
 
 getUserDataProxy.clearCache(); // you can clear cache manually by calling clearCache
 getUserDataProxy.clearCache('id-1'); // you can clear the cache you want by giving same parameters of the cache, this example means to clear the cache with key "id-1"
+```
+
+
+## useAsyncFunction
+
+```ts
+import { useAsyncFunction } from 'great-async';
+
+const getUserData = (id: string = 'xxx') => {
+    return Promise.resolve({
+        id: 'xxx',
+        name: 'tom',
+        age: 18,
+    });
+}
+
+const App = () => {
+    const {data, loading, error, run, clearCache} = useAsyncFunction(getUserData, {
+        // whether to call the function manually, default is false
+        manual: false,
+        // when deps changed, getUserData will be invoked again 
+        deps: ['xxx'],
+        // options of createAsyncController your can use here as well.
+    });
+    // data is null, before loading done, error is the same
+    // loading is true when calling getUserData, when calling is finished, it is false
+    // run is the proxy of getUserData, you can use it like getUserData, and it will change loading state
+    // clearCache is same as createAsyncController's clearCache
+
+    return <div />;
+
 ```
