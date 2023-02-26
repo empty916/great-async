@@ -1,10 +1,9 @@
 # great-async
 
-
-## make async operation better, it is like swrjs or react-query
-
+- make async operation better, it is like swrjs or react-query
 
 ## createAsyncController
+
 ```ts
 import { createAsyncController } from 'great-async';
 
@@ -23,39 +22,39 @@ const getUserDataProxy = createAsyncController(getUserData, {
      */
     debounceTime: -1,
     /**
-	 * time to live of cache, default is -1, means no cache
+     * time to live of cache, default is -1, means no cache
      * optional argument
-	 */
-	ttl: -1,
+     */
+    ttl: -1,
     /**
-	 * when the fn function is called multiple times at the same time, only the first call takes effect, the default is false
+     * when the fn function is called multiple times at the same time, only the first call takes effect, the default is false
      * optional argument
-	 */
-	single: false,
+     */
+    single: false,
     /**
-	 * a strategy to genrate key of cache,
+     * a strategy to genrate key of cache,
      * params is the arguments of function.
      * optional argument
-	 */
+     */
     genKeyByParams: params => JSON.stringify(params),
     /**
-	 * retry count of call function when error occur
+     * retry count of call function when error occur
      * optional argument
-	 */
-	retryCount: 0;
+     */
+    retryCount: 0;
 
     /**
-	 * retry strategy, if return value is true, it will retry to call function
+     * retry strategy, if return value is true, it will retry to call function
      * optional argument
-	 */
-	retryStrategy: (error: any) => boolean;
+     */
+    retryStrategy: (error: any) => boolean;
 
     /**
-	 * cache capacity, cache removal strategy using LRU algorithm
-	 * default value is -1, means no cache capacity limit.
+     * cache capacity, cache removal strategy using LRU algorithm
+     * default value is -1, means no cache capacity limit.
      * optional argument
-	 */
-	cacheCapacity: -1;
+     */
+    cacheCapacity: -1;
 });
 
 getUserDataProxy('id-1'); // you can use it like the original getUserData function
@@ -64,7 +63,6 @@ getUserDataProxy('id-1'); // you can use it like the original getUserData functi
 getUserDataProxy.clearCache(); // you can clear cache manually by calling clearCache
 getUserDataProxy.clearCache('id-1'); // you can clear the cache you want by giving same parameters of the cache, this example means to clear the cache with key "id-1"
 ```
-
 
 ## useAsyncFunction
 
@@ -83,7 +81,7 @@ const App = () => {
     const {data, loading, error, run, clearCache} = useAsyncFunction(getUserData, {
         // whether to call the function manually, default is false
         manual: false,
-        // when deps changed, getUserData will be invoked again 
+        // when deps changed, getUserData will be invoked again
         deps: ['xxx'],
         // options of createAsyncController your can use here as well.
     });
@@ -93,5 +91,5 @@ const App = () => {
     // clearCache is same as createAsyncController's clearCache
 
     return <div />;
-
+}
 ```
