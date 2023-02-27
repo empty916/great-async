@@ -428,5 +428,5 @@ test('recreate', async () => {
 			age: 10
 		}
 	});
-	expect(createAsyncController(getUserData)).toBe(getUserData);
+	expect(createAsyncController(getUserData)).not.toBe(getUserData);
 });

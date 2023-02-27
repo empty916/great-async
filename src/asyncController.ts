@@ -117,10 +117,7 @@ export function createAsyncController<F extends PromiseFunction>(
     genKeyByParams = defaultGenKeyByParams,
     cacheCapacity = -1,
   }: CreateAsyncControllerOptions<F> = {}
-): ReturnTypeOfCreateAsyncController<F> {
-  if (cacheMap.get(fn)) {
-    return fn as any as ReturnTypeOfCreateAsyncController<F>;
-  }
+) {
   let fetchMemberPageListTimer: any = null;
   let promiseHandler: Promise<any> | null;
   const clearExpiredCache = createClearExpiredCache(fnProxy, ttl);
