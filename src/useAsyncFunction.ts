@@ -94,7 +94,6 @@ export const useAsyncFunction = <F extends PromiseFunction>(
     return createAsyncController(fn1 as F, {
       ...createAsyncControllerOpts,
       beforeRun: (createAsyncControllerOpts.debounceTime !== -1 || createAsyncControllerOpts.beforeRun) ? () => {
-        console.log('before run, do loading')
         setAsyncFunctionState((ov) => {
           if (ov.loading) {
             return ov;
@@ -114,8 +113,6 @@ export const useAsyncFunction = <F extends PromiseFunction>(
       return async (...args: Parameters<F>) => {
         await Promise.resolve();
         if (createAsyncControllerOpts.debounceTime === -1) {
-          console.log('debounce time is -1 laoding');
-          
           setAsyncFunctionState((ov) => {
             if (ov.loading) {
               return ov;
