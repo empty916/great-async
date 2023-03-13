@@ -86,6 +86,7 @@ export interface CreateAsyncControllerOptions<
    * default value is -1, means no cache size limit
    */
   cacheCapacity?: number;
+  beforeRun?: () => any;
 }
 
 export interface ClearCache<F extends PromiseFunction> {
@@ -116,6 +117,7 @@ export function createAsyncController<F extends PromiseFunction>(
     retryStrategy = (error) => !!error,
     genKeyByParams = defaultGenKeyByParams,
     cacheCapacity = -1,
+    beforeRun
   }: CreateAsyncControllerOptions<F> = {}
 ) {
   let fetchMemberPageListTimer: any = null;
@@ -178,6 +180,7 @@ export function createAsyncController<F extends PromiseFunction>(
     })
       .then((arg: any) => {
         if (arg === undefined) {
+          beforeRun?.();
           return retryFn(params, retryCount)
             .then((res) => {
               // eslint-disable-next-line @typescript-eslint/no-shadow

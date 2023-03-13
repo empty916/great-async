@@ -91,13 +91,10 @@ export const useAsyncFunction = <F extends PromiseFunction>(
   const fnProxy = useMemo(() => {
     const fn1 = (...args: Parameters<F>) =>
       argsRef.current.fn(...(args as any));
-    return createAsyncController(fn1 as F, createAsyncControllerOpts);
-  }, [createAsyncControllerOpts]);
-
-  const createRunFn = useCallback(
-    (throwError: boolean) => {
-      return async (...args: Parameters<F>) => {
-        await Promise.resolve();
+    return createAsyncController(fn1 as F, {
+      ...createAsyncControllerOpts,
+      beforeRun: (createAsyncControllerOpts.debounceTime !== -1 || createAsyncControllerOpts.beforeRun) ? () => {
+        console.log('before run, do loading')
         setAsyncFunctionState((ov) => {
           if (ov.loading) {
             return ov;
@@ -107,6 +104,28 @@ export const useAsyncFunction = <F extends PromiseFunction>(
             loading: true,
           };
         });
+        createAsyncControllerOpts.beforeRun?.();
+      } : undefined
+    });
+  }, [createAsyncControllerOpts]);
+
+  const createRunFn = useCallback(
+    (throwError: boolean) => {
+      return async (...args: Parameters<F>) => {
+        await Promise.resolve();
+        if (createAsyncControllerOpts.debounceTime === -1) {
+          console.log('debounce time is -1 laoding');
+          
+          setAsyncFunctionState((ov) => {
+            if (ov.loading) {
+              return ov;
+            }
+            return {
+              ...ov,
+              loading: true,
+            };
+          });
+        }
         try {
           const res = await fnProxy(...args);
           setAsyncFunctionState((ov) => {
