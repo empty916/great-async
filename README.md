@@ -5,7 +5,7 @@
 ## createAsyncController
 
 ```ts
-import { createAsyncController } from 'great-async';
+import { createAsyncController, DIMENSIONS } from 'great-async';
 
 const getUserData = (id: string) => {
     return Promise.resolve({
@@ -22,6 +22,10 @@ const getUserDataProxy = createAsyncController(getUserData, {
      */
     debounceTime: -1,
     /**
+     * debounce dimension, default is DIMENSIONS.FUNCTION,
+     */
+    debounceDimension: DIMENSIONS.FUNCTION,
+    /**
      * time to live of cache, default is -1, means no cache
      * optional argument
      */
@@ -31,6 +35,10 @@ const getUserDataProxy = createAsyncController(getUserData, {
      * optional argument
      */
     single: false,
+    /**
+     * dimension of single, default is DIMENSIONS.FUNCTION
+     */
+    singleDimension: DIMENSIONS.FUNCTION;
     /**
      * a strategy to genrate key of cache,
      * params is the arguments of function.

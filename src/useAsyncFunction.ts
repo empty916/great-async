@@ -83,8 +83,9 @@ export const useAsyncFunction = <F extends PromiseFunction>(
   argsRef.current.fn = fn;
   argsRef.current.manual = manual;
   argsRef.current.deps = deps;
-
+  
   if (deps && !Array.isArray(deps)) {
+    console.log('deps:', JSON.stringify(deps))
     throw new Error("The deps must be an Array!");
   }
 

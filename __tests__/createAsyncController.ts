@@ -1,4 +1,4 @@
-import { cacheMap, createAsyncController } from '../src/asyncController';
+import { DIMENSIONS, cacheMap, createAsyncController } from '../src/asyncController';
 import { sleep } from '../src/utils';
 
 
@@ -41,16 +41,73 @@ test('single', async () => {
 	
 	const queuen: any[] = [];
 	for(let i = 0; i < 100; i++) {
-		// eslint-disable-next-line @typescript-eslint/no-loop-func
 		const promiseRes = getUserData();
 		queuen.push(promiseRes);
 	}
 	expect(queuen.length).toBe(100);
 	const reslist = await Promise.all(queuen);
-	expect([...new Set(reslist)][0]).toBe(reslist[0]);
+	expect([...new Set(reslist)].length).toBe(1);
 	expect(times).toBe(1);
 
 });
+
+
+
+test('single with parameter dimension 1', async () => {
+	let times = 0;
+	const getUserData = createAsyncController(async (i: number) => {
+		times++;
+		await sleep(100);
+		return {
+			i,
+			name: 'tom',
+			age: 10
+		}
+	}, {
+		single: true,
+		singleDimension: DIMENSIONS.PARAMETERS
+	});
+	
+	const queuen: any[] = [];
+	for(let i = 0; i < 100; i++) {
+		const promiseRes = getUserData(i);
+		queuen.push(promiseRes);
+	}
+	expect(queuen.length).toBe(100);
+	const reslist = await Promise.all(queuen);
+	expect([...new Set(reslist)].length).toBe(100);
+	expect(times).toBe(100);
+
+});
+
+
+
+test('single with parameter dimension 2', async () => {
+	let times = 0;
+	const getUserData = createAsyncController(async (i: number) => {
+		times++;
+		await sleep(100);
+		return {
+			i,
+			name: 'tom',
+			age: 10
+		}
+	}, {
+		single: true,
+		singleDimension: DIMENSIONS.PARAMETERS
+	});
+	
+	const queuen: any[] = [];
+	for(let i = 0; i < 100; i++) {
+		const promiseRes = getUserData(i % 3);
+		queuen.push(promiseRes);
+	}
+	expect(queuen.length).toBe(100);
+	const reslist = await Promise.all(queuen);
+	expect([...new Set(reslist)].length).toBe(3);
+	expect(times).toBe(3);
+});
+
 
 test('debounce time', async () => {
 	let times = 0;
@@ -73,8 +130,64 @@ test('debounce time', async () => {
 	}
 	expect(queuen.length).toBe(100);
 	const reslist = await Promise.all(queuen);
-	expect([...new Set(reslist)][0]).toBe(reslist[0]);
+	expect([...new Set(reslist)].length).toBe(1);
 	expect(times).toBe(1);
+
+});
+
+
+test('debounce time with parameter dimension 1', async () => {
+	let times = 0;
+	const getUserData = createAsyncController(async (i: number) => {
+		times++;
+		await sleep(100);
+		return {
+			i,
+			name: 'tom',
+			age: 10
+		}
+	}, {
+		debounceTime: 90,
+		debounceDimension: DIMENSIONS.PARAMETERS
+	});
+	
+	const queuen: any[] = [];
+	for(let i = 0; i < 100; i++) {
+		const promiseRes = getUserData(i);
+		queuen.push(promiseRes);
+	}
+	expect(queuen.length).toBe(100);
+	const reslist = await Promise.all(queuen);
+	expect([...new Set(reslist)].length).toBe(100);
+	expect(times).toBe(100);
+
+});
+
+
+test('debounce time with parameter dimension 2', async () => {
+	let times = 0;
+	const getUserData = createAsyncController(async (i: number) => {
+		times++;
+		await sleep(100);
+		return {
+			i,
+			name: 'tom',
+			age: 10
+		}
+	}, {
+		debounceTime: 90,
+		debounceDimension: DIMENSIONS.PARAMETERS
+	});
+	
+	const queuen: any[] = [];
+	for(let i = 0; i < 100; i++) {
+		const promiseRes = getUserData(i % 3);
+		queuen.push(promiseRes);
+	}
+	expect(queuen.length).toBe(100);
+	const reslist = await Promise.all(queuen);
+	expect([...new Set(reslist)].length).toBe(3);
+	expect(times).toBe(3);
 
 });
 
