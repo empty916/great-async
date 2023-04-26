@@ -38,7 +38,7 @@ const getUserDataProxy = createAsyncController(getUserData, {
     /**
      * dimension of single, default is DIMENSIONS.FUNCTION
      */
-    singleDimension: DIMENSIONS.FUNCTION;
+    singleDimension: DIMENSIONS.FUNCTION,
     /**
      * a strategy to genrate key of cache,
      * params is the arguments of function.
