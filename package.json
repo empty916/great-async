@@ -1,6 +1,6 @@
 {
   "name": "great-async",
-  "version": "1.0.3-beta2",
+  "version": "1.0.3",
   "description": "make async great again",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
