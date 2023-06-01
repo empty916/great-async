@@ -49,20 +49,20 @@ const getUserDataProxy = createAsyncController(getUserData, {
      * retry count of call function when error occur
      * optional argument
      */
-    retryCount: 0;
+    retryCount: 0,
 
     /**
      * retry strategy, if return value is true, it will retry to call function
      * optional argument
      */
-    retryStrategy: (error: any) => boolean;
+    retryStrategy: (error: any) => boolean,
 
     /**
      * cache capacity, cache removal strategy using LRU algorithm
      * default value is -1, means no cache capacity limit.
      * optional argument
      */
-    cacheCapacity: -1;
+    cacheCapacity: -1,
 });
 
 getUserDataProxy('id-1'); // you can use it like the original getUserData function
@@ -74,7 +74,7 @@ getUserDataProxy.clearCache('id-1'); // you can clear the cache you want by givi
 
 ## useAsyncFunction
 
-```ts
+```tsx
 import { useAsyncFunction } from 'great-async';
 
 const getUserData = (id: string = 'xxx') => {
@@ -87,8 +87,8 @@ const getUserData = (id: string = 'xxx') => {
 
 const App = () => {
     const {data, loading, error, run, clearCache} = useAsyncFunction(getUserData, {
-        // whether to call the function manually, default is false
-        manual: false,
+        // whether to call the function automatically, default is true
+        auto: true,
         // when deps changed, getUserData will be invoked again
         deps: ['xxx'],
         // options of createAsyncController your can use here as well.

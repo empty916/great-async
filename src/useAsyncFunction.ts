@@ -23,9 +23,16 @@ export interface UseAsyncFunctionOptions<F extends PromiseFunction>
    */
   deps?: DependencyList;
   /**
-   * whether to call fn manually
+   * @deprecated Please use auto option instead.
+   * @description whether to call fn manually.
+   * @default undefined
    */
   manual?: boolean;
+  /**
+   * @description whether to call fn automatically
+   * @default true
+   */
+  auto?: boolean;
 }
 
 export type UseAsyncFunctionReturn<F extends PromiseFunction> =
@@ -61,7 +68,7 @@ export const useAsyncFunction = <F extends PromiseFunction>(
   fn: F,
   opts: UseAsyncFunctionOptions<F> = {}
 ) => {
-  const { deps, manual = false, ...createAsyncControllerOptions } = opts;
+  const { deps, manual, auto = true, ...createAsyncControllerOptions } = opts;
   const stateRef = useRef({
     isMounted: false,
     depsRef: initDeps as DependencyList,
@@ -70,18 +77,20 @@ export const useAsyncFunction = <F extends PromiseFunction>(
   const argsRef = useRef({
     fn,
     deps: undefined as DependencyList | undefined,
-    manual: false,
+    manual: manual,
+    auto: true,
   });
   const [createAsyncControllerOpts] = useState(createAsyncControllerOptions);
   const [asyncFunctionState, setAsyncFunctionState] = useState<
     AsyncFunctionState<PickPromiseType<F> | null>
   >({
-    loading: !manual,
+    loading: manual === undefined ? auto : !manual,
     error: null,
     data: null,
   });
   argsRef.current.fn = fn;
   argsRef.current.manual = manual;
+  argsRef.current.auto = auto;
   argsRef.current.deps = deps;
   
   if (deps && !Array.isArray(deps)) {
@@ -166,7 +175,7 @@ export const useAsyncFunction = <F extends PromiseFunction>(
       stateRef.current.depsRef = ld;
     }
     stateRef.current.isMounted = true;
-    if (argsRef.current.manual) {
+    if (argsRef.current.manual ?? !auto) {
       return;
     }
     // @ts-ignore
@@ -182,7 +191,7 @@ export const useAsyncFunction = <F extends PromiseFunction>(
       return;
     }
     stateRef.current.depsRef = ld!;
-    if (argsRef.current.manual) {
+    if (argsRef.current.manual ?? !auto) {
       return;
     }
     // @ts-ignore

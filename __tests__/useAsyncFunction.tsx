@@ -2,7 +2,9 @@ import { sleep } from '../src/utils';
 import { useAsyncFunction } from '../src';
 import '@testing-library/jest-dom/extend-expect';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
+// @ts-ignore
+import React from 'react';
 
 test('normal', async () => {
 	const getUserInfo = async () => {
@@ -132,7 +134,7 @@ test('error', async () => {
 		if (loading) {
 			return <span role="loading">loading</span>;
 		}
-		
+
 		return (
 			<div role={'app'}>
 				{error.message}
@@ -146,7 +148,7 @@ test('error', async () => {
 });
 
 
-test('manual', async () => {
+test('auto', async () => {
 	let times = 0;
 	const getUserInfo = async () => {
 		times++;
@@ -160,7 +162,7 @@ test('manual', async () => {
 
 	const App = () => {
 		const { loading, data, run } = useAsyncFunction(getUserInfo, {
-			manual: true,
+			auto: false,
 		});
 
 		useEffect(() => {
@@ -184,7 +186,7 @@ test('manual', async () => {
 });
 
 
-test('manual with error', async () => {
+test('auto with error', async () => {
 
 	const getUserInfo = async () => {
 		await sleep(100);
@@ -193,7 +195,7 @@ test('manual with error', async () => {
 
 	const App = () => {
 		const { loading, error, run } = useAsyncFunction(getUserInfo, {
-			manual: true,
+			auto: false,
 			debounceTime: 10
 		});
 
@@ -236,7 +238,7 @@ test('single', async () => {
 
 	const App = () => {
 		const { loading, data, run } = useAsyncFunction(getUserInfo, {
-			manual: true,
+			auto: false,
 			single: true
 		});
 
@@ -276,7 +278,7 @@ test('debounceTime', async () => {
 
 	const App = () => {
 		const { loading, data, run } = useAsyncFunction(getUserInfo, {
-			manual: true,
+			auto: false,
 			debounceTime: 100,
 		});
 		const [, setFlag] = useState(1);
@@ -304,7 +306,7 @@ test('debounceTime', async () => {
 	expect(times).toBe(1);
 });
 
-test('debounceTime and manual', async () => {
+test('debounceTime and auto', async () => {
 	let times = 0;
 	const getUserInfo = async () => {
 		times++;
@@ -318,7 +320,7 @@ test('debounceTime and manual', async () => {
 
 	const App = () => {
 		const { loading, data, run } = useAsyncFunction(getUserInfo, {
-			manual: true,
+			auto: false,
 			debounceTime: 100,
 		});
 
@@ -390,7 +392,7 @@ test('deps auto', async () => {
 });
 
 
-test('deps to manual', async () => {
+test('deps to auto', async () => {
 	let times = 0;
 	const getUserInfo = async () => {
 		times++;
@@ -406,7 +408,7 @@ test('deps to manual', async () => {
 		const [flag, setFlag] = useState(1);
 		const { loading, data } = useAsyncFunction(getUserInfo, {
 			deps: [flag],
-			manual: flag === 2,
+			auto: flag !== 2,
 		});
 
 		if (loading || !data) {
