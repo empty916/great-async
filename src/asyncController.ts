@@ -49,7 +49,12 @@ function clearCache(fn: PromiseFunction, key?: string) {
 }
 
 function defaultGenKeyByParams(params: any[]) {
-  return JSON.stringify(params);
+  try {
+    return JSON.stringify(params);
+  } catch (error) {
+    console.warn('great-async: serialize parameters failed!');
+    return '[]'
+  }
 }
 
 
