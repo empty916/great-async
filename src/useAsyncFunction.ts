@@ -50,22 +50,40 @@ export type UseAsyncFunctionReturn<F extends PromiseFunction> =
        */
       error: any;
       /**
-       * proxy of fn, same as fn.
+       * * please use fn instead \
+       * proxy of first parameter, usage is same as first parameter. \
        * the difference is calling run will update loading state
+       * @deprecated
        */
       run: F;
+      /**
+       * proxy of first parameter, usage is same as first parameter. \
+       * the difference is calling fn will update loading state
+       */
+      fn: F;
       clearCache: ClearCache<F>;
     }
   | {
       data: PickPromiseType<F>;
       loading: false;
       error: any;
+      /**
+       * please use fn instead \
+       * proxy of first parameter, usage is same as first parameter. \
+       * the difference is calling run will update loading state
+       * @deprecated 
+       */
       run: F;
+      /**
+       * proxy of first parameter, usage is same as first parameter. \
+       * the difference is calling fn will update loading state
+       */
+      fn: F;
       clearCache: ClearCache<F>;
     };
 
 export const useAsyncFunction = <F extends PromiseFunction>(
-  fn: F,
+  asyncFn: F,
   opts: UseAsyncFunctionOptions<F> = {}
 ) => {
   const { deps, manual, auto = true, ...createAsyncControllerOptions } = opts;
@@ -75,7 +93,7 @@ export const useAsyncFunction = <F extends PromiseFunction>(
     id: {},
   });
   const argsRef = useRef({
-    fn,
+    asyncFn,
     deps: undefined as DependencyList | undefined,
     manual: manual,
     auto: true,
@@ -88,7 +106,7 @@ export const useAsyncFunction = <F extends PromiseFunction>(
     error: null,
     data: null,
   });
-  argsRef.current.fn = fn;
+  argsRef.current.asyncFn = asyncFn;
   argsRef.current.manual = manual;
   argsRef.current.auto = auto;
   argsRef.current.deps = deps;
@@ -100,7 +118,7 @@ export const useAsyncFunction = <F extends PromiseFunction>(
 
   const fnProxy = useMemo(() => {
     const fn1 = (...args: Parameters<F>) =>
-      argsRef.current.fn(...(args as any));
+      argsRef.current.asyncFn(...(args as any));
     return createAsyncController(fn1 as F, {
       ...createAsyncControllerOpts,
       beforeRun: (createAsyncControllerOpts.debounceTime !== -1 || createAsyncControllerOpts.beforeRun) ? () => {
@@ -203,6 +221,7 @@ export const useAsyncFunction = <F extends PromiseFunction>(
     loading: asyncFunctionState.loading,
     error: asyncFunctionState.error,
     run: manualRunFn,
+    fn: manualRunFn,
     clearCache: fnProxy.clearCache,
   } as UseAsyncFunctionReturn<F>;
 };

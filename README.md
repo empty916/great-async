@@ -86,16 +86,16 @@ const getUserData = (id: string = 'xxx') => {
 }
 
 const App = () => {
-    const {data, loading, error, run, clearCache} = useAsyncFunction(getUserData, {
+    const {data, loading, error, fn, clearCache} = useAsyncFunction(getUserData, {
         // whether to call the function automatically, default is true
         auto: true,
         // when deps changed, getUserData will be invoked again
-        deps: ['xxx'],
+        deps: [variableXXX],
         // options of createAsyncController your can use here as well.
     });
     // data is null, before loading done, error is the same
     // loading is true when calling getUserData, when calling is finished, it is false
-    // run is the proxy of getUserData, you can use it like getUserData, and it will change loading state
+    // fn is the proxy of getUserData, you can use it like getUserData, and it will change loading state
     // clearCache is same as createAsyncController's clearCache
 
     return <div />;

@@ -51,12 +51,12 @@ test('ttl', async () => {
 	};
 
 	const App = () => {
-		const { loading, data, run } = useAsyncFunction(getUserInfo, {ttl: 30});
+		const { loading, data, fn } = useAsyncFunction(getUserInfo, {ttl: 30});
 		useEffect(() => {
 			if (!data) {
 				return;
 			}
-			run().then(res => {
+			fn().then(res => {
 				expect(res).toBe(data);
 			})
 		}, [data]);
@@ -94,8 +94,8 @@ test('ttl and single', async () => {
 	};
 
 	const App = () => {
-		const { loading, data, run } = useAsyncFunction(getUserInfo, {ttl: 30, single: true});
-		run().then(res => {
+		const { loading, data, fn } = useAsyncFunction(getUserInfo, {ttl: 30, single: true});
+		fn().then(res => {
 			if (!data) {
 				return;
 			}
@@ -161,12 +161,12 @@ test('auto', async () => {
 	};
 
 	const App = () => {
-		const { loading, data, run } = useAsyncFunction(getUserInfo, {
+		const { loading, data, fn } = useAsyncFunction(getUserInfo, {
 			auto: false,
 		});
 
 		useEffect(() => {
-			run();
+			fn();
 		}, [])
 
 		if (loading || !data) {
@@ -194,17 +194,17 @@ test('auto with error', async () => {
 	};
 
 	const App = () => {
-		const { loading, error, run } = useAsyncFunction(getUserInfo, {
+		const { loading, error, fn } = useAsyncFunction(getUserInfo, {
 			auto: false,
 			debounceTime: 10
 		});
 
 		useEffect(() => {
 			(async () => {
-				run().catch((err: any) => {
+				fn().catch((err: any) => {
 					expect(err.message).toBe('error message')
 				});
-				run().catch((err: any) => {
+				fn().catch((err: any) => {
 					expect(err.message).toBe('error message')
 				});
 			})()
@@ -237,15 +237,15 @@ test('single', async () => {
 	};
 
 	const App = () => {
-		const { loading, data, run } = useAsyncFunction(getUserInfo, {
+		const { loading, data, fn } = useAsyncFunction(getUserInfo, {
 			auto: false,
 			single: true
 		});
 
 		useEffect(() => {
-			run();
-			run();
-			run();
+			fn();
+			fn();
+			fn();
 		}, [])
 
 		if (loading || !data) {
@@ -277,14 +277,14 @@ test('debounceTime', async () => {
 	};
 
 	const App = () => {
-		const { loading, data, run } = useAsyncFunction(getUserInfo, {
+		const { loading, data, fn } = useAsyncFunction(getUserInfo, {
 			auto: false,
 			debounceTime: 100,
 		});
 		const [, setFlag] = useState(1);
 
 		useEffect(() => {
-			run();
+			fn();
 		});
 		useEffect(() => {
 			setFlag(v => v+1);
@@ -319,18 +319,18 @@ test('debounceTime and auto', async () => {
 	};
 
 	const App = () => {
-		const { loading, data, run } = useAsyncFunction(getUserInfo, {
+		const { loading, data, fn } = useAsyncFunction(getUserInfo, {
 			auto: false,
 			debounceTime: 100,
 		});
 
 		useEffect(() => {
 			(async () => {
-				run();
+				fn();
 				await sleep(50);
-				run();
+				fn();
 				await sleep(50);
-				run();
+				fn();
 			})()
 		}, [])
 
