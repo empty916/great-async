@@ -1,15 +1,24 @@
+
 import type {
   ClearCache,
   CreateAsyncControllerOptions,
 } from "./asyncController";
 import { createAsyncController } from "./asyncController";
 import type { DependencyList } from "react";
-import { useCallback, useEffect, useRef, useState, useMemo } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useMemo,
+  useSyncExternalStore,
+} from "react";
 import type { PickPromiseType, PromiseFunction } from "./common";
 import { shallowEqual } from "./common";
+import { sharedPendingStateManager } from "./SharedPendingStateManager";
 
 export interface AsyncFunctionState<T> {
-  loading: boolean;
+  pending: boolean;
   error: any;
   data: T;
 }
@@ -33,6 +42,10 @@ export interface UseAsyncFunctionOptions<F extends PromiseFunction>
    * @default true
    */
   auto?: boolean;
+  /**
+   * When using usAsyncFunction in different components and giving them the same pendingId, they will share the "pending" state.
+   */
+  pendingId?: string;
 }
 
 export type UseAsyncFunctionReturn<F extends PromiseFunction> =
@@ -42,9 +55,15 @@ export type UseAsyncFunctionReturn<F extends PromiseFunction> =
        */
       data: PickPromiseType<F> | null;
       /**
-       * promise's loading status
+       * promise's pending status \
+       * please use pending intead
+       * @deprecated
        */
       loading: true;
+      /**
+       * promise's pending status
+       */
+      pending: true;
       /**
        * promise's error value
        */
@@ -65,13 +84,22 @@ export type UseAsyncFunctionReturn<F extends PromiseFunction> =
     }
   | {
       data: PickPromiseType<F>;
+      /**
+       * promise's pending status \
+       * please use pending intead
+       * @deprecated
+       */
       loading: false;
+      /**
+       * promise's pending status
+       */
+      pending: false;
       error: any;
       /**
        * please use fn instead \
        * proxy of first parameter, usage is same as first parameter. \
        * the difference is calling run will update loading state
-       * @deprecated 
+       * @deprecated
        */
       run: F;
       /**
@@ -86,23 +114,31 @@ export const useAsyncFunction = <F extends PromiseFunction>(
   asyncFn: F,
   opts: UseAsyncFunctionOptions<F> = {}
 ) => {
-  const { deps, manual, auto = true, ...createAsyncControllerOptions } = opts;
+  const {
+    deps,
+    manual,
+    auto = true,
+    pendingId = '',
+    ...createAsyncControllerOptions
+  } = opts;
   const stateRef = useRef({
     isMounted: false,
     depsRef: initDeps as DependencyList,
     id: {},
+    inited: false,
   });
   const argsRef = useRef({
     asyncFn,
     deps: undefined as DependencyList | undefined,
     manual: manual,
     auto: true,
+    pendingId: '',
   });
   const [createAsyncControllerOpts] = useState(createAsyncControllerOptions);
   const [asyncFunctionState, setAsyncFunctionState] = useState<
     AsyncFunctionState<PickPromiseType<F> | null>
   >({
-    loading: manual === undefined ? auto : !manual,
+    pending: manual === undefined ? auto : !manual,
     error: null,
     data: null,
   });
@@ -110,29 +146,50 @@ export const useAsyncFunction = <F extends PromiseFunction>(
   argsRef.current.manual = manual;
   argsRef.current.auto = auto;
   argsRef.current.deps = deps;
-  
+  argsRef.current.pendingId = pendingId;
+
   if (deps && !Array.isArray(deps)) {
-    console.log('deps:', JSON.stringify(deps))
+    console.log("deps:", JSON.stringify(deps));
     throw new Error("The deps must be an Array!");
   }
+
+  if (!stateRef.current.inited && pendingId) {
+    sharedPendingStateManager.init(pendingId);
+    if (asyncFunctionState.pending) {
+      sharedPendingStateManager.increment(pendingId);
+    }
+  }
+  stateRef.current.inited = true;
+
+  const sharedPendingState = useSyncExternalStore(
+    cb => sharedPendingStateManager.subscribe(pendingId, cb),
+    () => sharedPendingStateManager.isPending(pendingId),
+    () => sharedPendingStateManager.isPending(pendingId),
+  );
+
 
   const fnProxy = useMemo(() => {
     const fn1 = (...args: Parameters<F>) =>
       argsRef.current.asyncFn(...(args as any));
     return createAsyncController(fn1 as F, {
       ...createAsyncControllerOpts,
-      beforeRun: (createAsyncControllerOpts.debounceTime !== -1 || createAsyncControllerOpts.beforeRun) ? () => {
-        setAsyncFunctionState((ov) => {
-          if (ov.loading) {
-            return ov;
-          }
-          return {
-            ...ov,
-            loading: true,
-          };
-        });
-        createAsyncControllerOpts.beforeRun?.();
-      } : undefined
+      beforeRun:
+        createAsyncControllerOpts.debounceTime !== -1 ||
+        createAsyncControllerOpts.beforeRun
+          ? () => {
+              setAsyncFunctionState((ov) => {
+                if (ov.pending) {
+                  return ov;
+                }
+                sharedPendingStateManager.increment(argsRef.current.pendingId);
+                return {
+                  ...ov,
+                  pending: true,
+                };
+              });
+              createAsyncControllerOpts.beforeRun?.();
+            }
+          : undefined,
     });
   }, [createAsyncControllerOpts]);
 
@@ -142,23 +199,25 @@ export const useAsyncFunction = <F extends PromiseFunction>(
         await Promise.resolve();
         if (createAsyncControllerOpts.debounceTime === -1) {
           setAsyncFunctionState((ov) => {
-            if (ov.loading) {
+            if (ov.pending) {
               return ov;
             }
+            sharedPendingStateManager.increment(argsRef.current.pendingId);
             return {
               ...ov,
-              loading: true,
+              pending: true,
             };
           });
         }
         try {
           const res = await fnProxy(...args);
           setAsyncFunctionState((ov) => {
-            if (!ov.loading && ov.error === null && ov.data === res) {
+            if (!ov.pending && ov.error === null && ov.data === res) {
               return ov;
             }
+            sharedPendingStateManager.decrement(argsRef.current.pendingId);
             return {
-              loading: false,
+              pending: false,
               error: null,
               data: res,
             };
@@ -166,12 +225,13 @@ export const useAsyncFunction = <F extends PromiseFunction>(
           return res;
         } catch (err) {
           setAsyncFunctionState((ov) => {
-            if (!ov.loading && ov.error === err && ov.data === null) {
+            if (!ov.pending && ov.error === err && ov.data === null) {
               return ov;
             }
+            sharedPendingStateManager.decrement(argsRef.current.pendingId);
             return {
               error: err,
-              loading: false,
+              pending: false,
               data: null,
             };
           });
@@ -193,7 +253,7 @@ export const useAsyncFunction = <F extends PromiseFunction>(
       stateRef.current.depsRef = ld;
     }
     stateRef.current.isMounted = true;
-    if (argsRef.current.manual ?? !auto) {
+    if (argsRef.current.manual ?? !argsRef.current.auto) {
       return;
     }
     // @ts-ignore
@@ -209,19 +269,23 @@ export const useAsyncFunction = <F extends PromiseFunction>(
       return;
     }
     stateRef.current.depsRef = ld!;
-    if (argsRef.current.manual ?? !auto) {
+    if (argsRef.current.manual ?? !argsRef.current.auto) {
       return;
     }
     // @ts-ignore
     runFn();
   }, [deps, runFn]);
 
+  const composedPendingState = asyncFunctionState.pending || sharedPendingState;
+
   return {
     data: asyncFunctionState.data,
-    loading: asyncFunctionState.loading,
+    loading: composedPendingState,
+    pending: composedPendingState,
     error: asyncFunctionState.error,
     run: manualRunFn,
     fn: manualRunFn,
     clearCache: fnProxy.clearCache,
   } as UseAsyncFunctionReturn<F>;
 };
+

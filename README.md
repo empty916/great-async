@@ -1,3 +1,4 @@
+
 # great-async
 
 - make async operation better, it is like swrjs or react-query
@@ -86,18 +87,21 @@ const getUserData = (id: string = 'xxx') => {
 }
 
 const App = () => {
-    const {data, loading, error, fn, clearCache} = useAsyncFunction(getUserData, {
-        // whether to call the function automatically, default is true
+    const {data, pending, error, fn, clearCache} = useAsyncFunction(getUserData, {
+        // optional config, whether to call the function automatically, default is true
         auto: true,
-        // when deps changed, getUserData will be invoked again
+        // optional config, when deps changed, getUserData will be invoked again
         deps: [variableXXX],
+        // optional config, when using usAsyncFunction in different components and giving them the same pendingId, they will share the "pending" state.
+        pendingId: 'id1'
         // options of createAsyncController your can use here as well.
     });
-    // data is null, before loading done, error is the same
-    // loading is true when calling getUserData, when calling is finished, it is false
-    // fn is the proxy of getUserData, you can use it like getUserData, and it will change loading state
+    // data is null, before pending done, error is the same
+    // pending is true when calling getUserData, when calling is finished, it is false
+    // fn is the proxy of getUserData, you can use it like getUserData, and it will change pending state
     // clearCache is same as createAsyncController's clearCache
 
     return <div />;
 }
 ```
+
