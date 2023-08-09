@@ -88,11 +88,11 @@ const getUserData = (id: string = 'xxx') => {
 
 const App = () => {
     const {data, pending, error, fn, clearCache} = useAsyncFunction(getUserData, {
-        // optional config, whether to call the function automatically, default is true
+        // Optional parameter, whether to call the function automatically, default is true
         auto: true,
-        // optional config, when deps changed, getUserData will be invoked again
+        // Optional parameter, when deps changed, getUserData will be invoked again
         deps: [variableXXX],
-        // optional config, when using usAsyncFunction in different components and giving them the same pendingId, they will share the "pending" state.
+        // Optional parameter, when using useAsyncFunction in different components and giving them the same pendingId, they will share the "pending" state.
         pendingId: 'id1'
         // options of createAsyncController your can use here as well.
     });
