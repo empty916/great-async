@@ -2,46 +2,46 @@
 export class SharedPendingStateManager {
   values = {} as Record<string, number>;
   listeners = {} as Record<string, (() => any)[]>;
-  subscribe(pendingId: string, callback: () => any) {
-    if (!pendingId) {
+  subscribe(loadingId: string, callback: () => any) {
+    if (!loadingId) {
       return () => {};
     }
-    if (!this.listeners[pendingId]) {
-      this.init(pendingId);
+    if (!this.listeners[loadingId]) {
+      this.init(loadingId);
     }
-    this.listeners[pendingId].push(callback);
+    this.listeners[loadingId].push(callback);
     return () => {
-      this.listeners[pendingId] = this.listeners[pendingId].filter(
+      this.listeners[loadingId] = this.listeners[loadingId].filter(
         (cb) => cb !== callback
       );
     };
   }
-  isPending(pendingId: string) {
-    return this.values[pendingId] > 0;
+  isPending(loadingId: string) {
+    return this.values[loadingId] > 0;
   }
-  init(pendingId: string) {
-    if (!pendingId || this.values[pendingId] !== undefined) {
+  init(loadingId: string) {
+    if (!loadingId || this.values[loadingId] !== undefined) {
       return;
     }
-    this.values[pendingId] = 0;
-    this.listeners[pendingId] = [];
+    this.values[loadingId] = 0;
+    this.listeners[loadingId] = [];
   }
-  increment(pendingId: string) {
-    if (!pendingId) {
+  increment(loadingId: string) {
+    if (!loadingId) {
       return;
     }
-    this.values[pendingId]++;
-    this.emit(pendingId);
+    this.values[loadingId]++;
+    this.emit(loadingId);
   }
-  decrement(pendingId: string) {
-    if (!pendingId) {
+  decrement(loadingId: string) {
+    if (!loadingId) {
       return;
     }
-    this.values[pendingId]--;
-    this.emit(pendingId);
+    this.values[loadingId]--;
+    this.emit(loadingId);
   }
-  emit(pendingId: string) {
-    this.listeners[pendingId]?.forEach?.((callback) => callback());
+  emit(loadingId: string) {
+    this.listeners[loadingId]?.forEach?.((callback) => callback());
   }
 }
 

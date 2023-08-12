@@ -87,18 +87,18 @@ const getUserData = (id: string = 'xxx') => {
 }
 
 const App = () => {
-    const {data, pending, error, fn, clearCache} = useAsyncFunction(getUserData, {
+    const {data, loading, error, fn, clearCache} = useAsyncFunction(getUserData, {
         // Optional parameter, whether to call the function automatically, default is true
         auto: true,
         // Optional parameter, when deps changed, getUserData will be invoked again
         deps: [variableXXX],
-        // Optional parameter, when using useAsyncFunction in different components and giving them the same pendingId, they will share the "pending" state.
-        pendingId: 'id1'
+        // Optional parameter, when using useAsyncFunction in different components and giving them the same loadingId, they will share the "loading" state.
+        loadingId: 'id1'
         // options of createAsyncController your can use here as well.
     });
-    // data is null, before pending done, error is the same
-    // pending is true when calling getUserData, when calling is finished, it is false
-    // fn is the proxy of getUserData, you can use it like getUserData, and it will change pending state
+    // data is null, before loading done, error is the same
+    // loading is true when calling getUserData, when calling is finished, it is false
+    // fn is the proxy of getUserData, you can use it like getUserData, and it will change loading state
     // clearCache is same as createAsyncController's clearCache
 
     return <div />;

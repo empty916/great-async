@@ -18,9 +18,9 @@ test('normal', async () => {
     };
 
     const App = () => {
-        const { pending, data } = useAsyncFunction(getUserInfo);
-        if (pending) {
-            return <span role="pending">pending</span>;
+        const { loading, data } = useAsyncFunction(getUserInfo);
+        if (loading) {
+            return <span role="loading">loading</span>;
         }
         return (
             <div role={'app'}>
@@ -31,7 +31,7 @@ test('normal', async () => {
         );
     };
     render(<App />);
-    expect(screen.getByRole('pending')).toHaveTextContent('pending');
+    expect(screen.getByRole('loading')).toHaveTextContent('loading');
     await waitFor(() => screen.getByRole('app'));
     expect(screen.getByRole('app')).toHaveTextContent('xxx');
     expect(screen.getByRole('app')).toHaveTextContent('tom');
@@ -40,7 +40,7 @@ test('normal', async () => {
 
 
 
-test('pendingId', async () => {
+test('loadingId', async () => {
     const getUserInfo = async () => {
         await sleep(10);
         return {
@@ -51,11 +51,11 @@ test('pendingId', async () => {
     };
 
     const App = () => {
-        const { pending, data } = useAsyncFunction(getUserInfo, {
-            pendingId: 'app',
+        const { loading, data } = useAsyncFunction(getUserInfo, {
+            loadingId: 'app',
         });
-        if (pending) {
-            return <span role="pending">pending</span>;
+        if (loading) {
+            return <span role="loading">loading</span>;
         }
         return (
             <div role={'app'}>
@@ -66,10 +66,10 @@ test('pendingId', async () => {
         );
     };
     const App2 = () => {
-        const { pending, data } = useAsyncFunction(getUserInfo, {
-            pendingId: 'app',
+        const { loading, data } = useAsyncFunction(getUserInfo, {
+            loadingId: 'app',
         });
-        if (pending) {
+        if (loading) {
             return <span role="pending2">pending2</span>;
         }
         return (
@@ -87,7 +87,7 @@ test('pendingId', async () => {
         </>
     ));
     expect(sharedPendingStateManager.isPending('app')).toBe(true);
-    expect(screen.getByRole('pending')).toHaveTextContent('pending');
+    expect(screen.getByRole('loading')).toHaveTextContent('loading');
     expect(screen.getByRole('pending2')).toHaveTextContent('pending2');
     await waitFor(() => screen.getByRole('app'));
 
@@ -114,7 +114,7 @@ test('ttl', async () => {
     };
 
     const App = () => {
-        const { pending, data, fn } = useAsyncFunction(getUserInfo, {ttl: 30});
+        const { loading, data, fn } = useAsyncFunction(getUserInfo, {ttl: 30});
         useEffect(() => {
             if (!data) {
                 return;
@@ -123,8 +123,8 @@ test('ttl', async () => {
                 expect(res).toBe(data);
             })
         }, [data]);
-        if (pending) {
-            return <span role="pending">pending</span>;
+        if (loading) {
+            return <span role="loading">loading</span>;
         }
         return (
             <div role={'app'}>
@@ -135,7 +135,7 @@ test('ttl', async () => {
         );
     };
     render(<App />);
-    expect(screen.getByRole('pending')).toHaveTextContent('pending');
+    expect(screen.getByRole('loading')).toHaveTextContent('loading');
     await waitFor(() => screen.getByRole('app'));
     expect(screen.getByRole('app')).toHaveTextContent('xxx');
     expect(screen.getByRole('app')).toHaveTextContent('tom');
@@ -157,15 +157,15 @@ test('ttl and single', async () => {
     };
 
     const App = () => {
-        const { pending, data, fn } = useAsyncFunction(getUserInfo, {ttl: 30, single: true});
+        const { loading, data, fn } = useAsyncFunction(getUserInfo, {ttl: 30, single: true});
         fn().then(res => {
             if (!data) {
                 return;
             }
             expect(res).toBe(data);
         })
-        if (pending) {
-            return <span role="pending">pending</span>;
+        if (loading) {
+            return <span role="loading">loading</span>;
         }
         return (
             <div role={'app'}>
@@ -176,7 +176,7 @@ test('ttl and single', async () => {
         );
     };
     render(<App />);
-    expect(screen.getByRole('pending')).toHaveTextContent('pending');
+    expect(screen.getByRole('loading')).toHaveTextContent('loading');
     await waitFor(() => screen.getByRole('app'));
     expect(screen.getByRole('app')).toHaveTextContent('xxx');
     expect(screen.getByRole('app')).toHaveTextContent('tom');
@@ -193,9 +193,9 @@ test('error', async () => {
     };
 
     const App = () => {
-        const { pending, error } = useAsyncFunction(getUserInfo);
-        if (pending) {
-            return <span role="pending">pending</span>;
+        const { loading, error } = useAsyncFunction(getUserInfo);
+        if (loading) {
+            return <span role="loading">loading</span>;
         }
 
         return (
@@ -205,7 +205,7 @@ test('error', async () => {
         );
     };
     render(<App />);
-    expect(screen.getByRole('pending')).toHaveTextContent('pending');
+    expect(screen.getByRole('loading')).toHaveTextContent('loading');
     await waitFor(() => screen.getByRole('app'));
     expect(screen.getByRole('app')).toHaveTextContent('error message');
 });
@@ -224,7 +224,7 @@ test('auto', async () => {
     };
 
     const App = () => {
-        const { pending, data, fn } = useAsyncFunction(getUserInfo, {
+        const { loading, data, fn } = useAsyncFunction(getUserInfo, {
             auto: false,
         });
 
@@ -232,8 +232,8 @@ test('auto', async () => {
             fn();
         }, [])
 
-        if (pending || !data) {
-            return <span role="pending">pending</span>;
+        if (loading || !data) {
+            return <span role="loading">loading</span>;
         }
         return (
             <div role={'app'}>
@@ -257,7 +257,7 @@ test('auto with error', async () => {
     };
 
     const App = () => {
-        const { pending, error, fn } = useAsyncFunction(getUserInfo, {
+        const { loading, error, fn } = useAsyncFunction(getUserInfo, {
             auto: false,
             debounceTime: 10
         });
@@ -273,8 +273,8 @@ test('auto with error', async () => {
             })()
         }, []);
 
-        if (pending || !error) {
-            return <span role="pending">pending</span>;
+        if (loading || !error) {
+            return <span role="loading">loading</span>;
         }
         return (
             <div role={'app'}>
@@ -300,7 +300,7 @@ test('single', async () => {
     };
 
     const App = () => {
-        const { pending, data, fn } = useAsyncFunction(getUserInfo, {
+        const { loading, data, fn } = useAsyncFunction(getUserInfo, {
             auto: false,
             single: true
         });
@@ -311,8 +311,8 @@ test('single', async () => {
             fn();
         }, [])
 
-        if (pending || !data) {
-            return <span role="pending">pending</span>;
+        if (loading || !data) {
+            return <span role="loading">loading</span>;
         }
         return (
             <div role={'app'}>
@@ -340,7 +340,7 @@ test('debounceTime', async () => {
     };
 
     const App = () => {
-        const { pending, data, fn } = useAsyncFunction(getUserInfo, {
+        const { loading, data, fn } = useAsyncFunction(getUserInfo, {
             auto: false,
             debounceTime: 100,
         });
@@ -353,8 +353,8 @@ test('debounceTime', async () => {
             setFlag(v => v+1);
         }, []);
 
-        if (pending || !data) {
-            return <span role="pending">pending</span>;
+        if (loading || !data) {
+            return <span role="loading">loading</span>;
         }
         return (
             <div role={'app'}>
@@ -382,7 +382,7 @@ test('debounceTime and auto', async () => {
     };
 
     const App = () => {
-        const { pending, data, fn } = useAsyncFunction(getUserInfo, {
+        const { loading, data, fn } = useAsyncFunction(getUserInfo, {
             auto: false,
             debounceTime: 100,
         });
@@ -397,8 +397,8 @@ test('debounceTime and auto', async () => {
             })()
         }, [])
 
-        if (pending || !data) {
-            return <span role="pending">pending</span>;
+        if (loading || !data) {
+            return <span role="loading">loading</span>;
         }
         return (
             <div role={'app'}>
@@ -427,12 +427,12 @@ test('deps auto', async () => {
 
     const App = () => {
         const [flag, setFlag] = useState(1);
-        const { pending, data } = useAsyncFunction(getUserInfo, {
+        const { loading, data } = useAsyncFunction(getUserInfo, {
             deps: [flag]
         });
 
-        if (pending || !data) {
-            return <span role="pending">pending</span>;
+        if (loading || !data) {
+            return <span role="loading">loading</span>;
         }
         return (
             <div role={'app'}>
@@ -448,7 +448,7 @@ test('deps auto', async () => {
     expect(screen.getByRole('app')).toHaveTextContent('xxx');
     expect(times).toBe(1);
     fireEvent.click(screen.getByRole('change'));
-    await waitFor(() => screen.getByRole('pending'));
+    await waitFor(() => screen.getByRole('loading'));
     await waitFor(() => screen.getByRole('app'));
     expect(screen.getByRole('app')).toHaveTextContent('xxx');
     expect(times).toBe(2);
@@ -469,13 +469,13 @@ test('deps to auto', async () => {
 
     const App = () => {
         const [flag, setFlag] = useState(1);
-        const { pending, data } = useAsyncFunction(getUserInfo, {
+        const { loading, data } = useAsyncFunction(getUserInfo, {
             deps: [flag],
             auto: flag !== 2,
         });
 
-        if (pending || !data) {
-            return <span role="pending">pending</span>;
+        if (loading || !data) {
+            return <span role="loading">loading</span>;
         }
         return (
             <div role={'app'}>
@@ -508,13 +508,13 @@ test('deps error', async () => {
 
     const App = () => {
         const [flag, setFlag] = useState(1);
-        const { pending, data } = useAsyncFunction(getUserInfo, {
+        const { loading, data } = useAsyncFunction(getUserInfo, {
             // @ts-ignore
             deps: flag
         });
 
-        if (pending || !data) {
-            return <span role="pending">pending</span>;
+        if (loading || !data) {
+            return <span role="loading">loading</span>;
         }
         return (
             <div role={'app'}>
@@ -542,12 +542,12 @@ test('deps and triggle multiply', async () => {
 
     const App = () => {
         const [flag, setFlag] = useState(1);
-        const { pending, data } = useAsyncFunction(getUserInfo, {
+        const { loading, data } = useAsyncFunction(getUserInfo, {
             deps: [flag],
         });
 
-        if (pending || !data) {
-            return <span role="pending">pending</span>;
+        if (loading || !data) {
+            return <span role="loading">loading</span>;
         }
         return (
             <div role={'app'}>
@@ -564,7 +564,7 @@ test('deps and triggle multiply', async () => {
     fireEvent.click(screen.getByRole('change'));
     fireEvent.click(screen.getByRole('change'));
     fireEvent.click(screen.getByRole('change'));
-    await waitFor(() => screen.getByRole('pending'));
+    await waitFor(() => screen.getByRole('loading'));
     await waitFor(() => screen.getByRole('app'));
     expect(times).toBe(4);
 });
@@ -583,13 +583,13 @@ test('deps and single', async () => {
 
     const App = () => {
         const [flag, setFlag] = useState(1);
-        const { pending, data } = useAsyncFunction(getUserInfo, {
+        const { loading, data } = useAsyncFunction(getUserInfo, {
             deps: [flag],
             single: true,
         });
 
-        if (pending || !data) {
-            return <span role="pending">pending</span>;
+        if (loading || !data) {
+            return <span role="loading">loading</span>;
         }
         return (
             <div role={'app'}>
@@ -606,7 +606,7 @@ test('deps and single', async () => {
     fireEvent.click(screen.getByRole('change'));
     fireEvent.click(screen.getByRole('change'));
     fireEvent.click(screen.getByRole('change'));
-    await waitFor(() => screen.getByRole('pending'));
+    await waitFor(() => screen.getByRole('loading'));
     await waitFor(() => screen.getByRole('app'));
     expect(times).toBe(2);
 });
@@ -625,13 +625,13 @@ test('deps and debounce', async () => {
 
     const App = () => {
         const [flag, setFlag] = useState(1);
-        const { pending, data } = useAsyncFunction(getUserInfo, {
+        const { loading, data } = useAsyncFunction(getUserInfo, {
             deps: [flag],
             debounceTime: 30,
         });
 
-        if (pending || !data) {
-            return <span role="pending">pending</span>;
+        if (loading || !data) {
+            return <span role="loading">loading</span>;
         }
         return (
             <div role={'app'}>
@@ -648,7 +648,7 @@ test('deps and debounce', async () => {
     fireEvent.click(screen.getByRole('change'));
     fireEvent.click(screen.getByRole('change'));
     fireEvent.click(screen.getByRole('change'));
-    await waitFor(() => screen.getByRole('pending'));
+    await waitFor(() => screen.getByRole('loading'));
     await waitFor(() => screen.getByRole('app'));
     expect(times).toBe(2);
 });
