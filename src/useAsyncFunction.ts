@@ -15,7 +15,7 @@ import {
 } from "react";
 import type { PickPromiseType, PromiseFunction } from "./common";
 import { shallowEqual } from "./common";
-import { sharedPendingStateManager } from "./SharedPendingStateManager";
+import { sharedLoadingStateManager } from "./SharedLoadingStateManager";
 
 export interface AsyncFunctionState<T> {
   loading: boolean;
@@ -144,17 +144,17 @@ export const useAsyncFunction = <F extends PromiseFunction>(
   }
 
   if (!stateRef.current.inited && loadingId) {
-    sharedPendingStateManager.init(loadingId);
+    sharedLoadingStateManager.init(loadingId);
     if (asyncFunctionState.loading) {
-      sharedPendingStateManager.increment(loadingId);
+      sharedLoadingStateManager.increment(loadingId);
     }
   }
   stateRef.current.inited = true;
 
   const sharedPendingState = useSyncExternalStore(
-    cb => sharedPendingStateManager.subscribe(loadingId, cb),
-    () => sharedPendingStateManager.isPending(loadingId),
-    () => sharedPendingStateManager.isPending(loadingId),
+    cb => sharedLoadingStateManager.subscribe(loadingId, cb),
+    () => sharedLoadingStateManager.isPending(loadingId),
+    () => sharedLoadingStateManager.isPending(loadingId),
   );
 
 
@@ -171,7 +171,7 @@ export const useAsyncFunction = <F extends PromiseFunction>(
                 if (ov.loading) {
                   return ov;
                 }
-                sharedPendingStateManager.increment(argsRef.current.loadingId);
+                sharedLoadingStateManager.increment(argsRef.current.loadingId);
                 return {
                   ...ov,
                   loading: true,
@@ -192,7 +192,7 @@ export const useAsyncFunction = <F extends PromiseFunction>(
             if (ov.loading) {
               return ov;
             }
-            sharedPendingStateManager.increment(argsRef.current.loadingId);
+            sharedLoadingStateManager.increment(argsRef.current.loadingId);
             return {
               ...ov,
               loading: true,
@@ -205,7 +205,7 @@ export const useAsyncFunction = <F extends PromiseFunction>(
             if (!ov.loading && ov.error === null && ov.data === res) {
               return ov;
             }
-            sharedPendingStateManager.decrement(argsRef.current.loadingId);
+            sharedLoadingStateManager.decrement(argsRef.current.loadingId);
             return {
               loading: false,
               error: null,
@@ -218,7 +218,7 @@ export const useAsyncFunction = <F extends PromiseFunction>(
             if (!ov.loading && ov.error === err && ov.data === null) {
               return ov;
             }
-            sharedPendingStateManager.decrement(argsRef.current.loadingId);
+            sharedLoadingStateManager.decrement(argsRef.current.loadingId);
             return {
               error: err,
               loading: false,

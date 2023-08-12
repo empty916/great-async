@@ -1,5 +1,5 @@
 
-export class SharedPendingStateManager {
+export class SharedLoadingStateManager {
   values = {} as Record<string, number>;
   listeners = {} as Record<string, (() => any)[]>;
   subscribe(loadingId: string, callback: () => any) {
@@ -45,4 +45,4 @@ export class SharedPendingStateManager {
   }
 }
 
-export const sharedPendingStateManager = new SharedPendingStateManager();
+export const sharedLoadingStateManager = new SharedLoadingStateManager();

@@ -5,7 +5,7 @@ import '@testing-library/jest-dom/extend-expect';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { useEffect, useState } from 'react';
 import React from 'react';
-import { sharedPendingStateManager } from '../src/SharedPendingStateManager';
+import { sharedLoadingStateManager } from '../src/SharedLoadingStateManager';
 
 test('normal', async () => {
     const getUserInfo = async () => {
@@ -86,12 +86,12 @@ test('loadingId', async () => {
             <App2 />
         </>
     ));
-    expect(sharedPendingStateManager.isPending('app')).toBe(true);
+    expect(sharedLoadingStateManager.isPending('app')).toBe(true);
     expect(screen.getByRole('loading')).toHaveTextContent('loading');
     expect(screen.getByRole('pending2')).toHaveTextContent('pending2');
     await waitFor(() => screen.getByRole('app'));
 
-    expect(sharedPendingStateManager.isPending('app')).toBe(false);
+    expect(sharedLoadingStateManager.isPending('app')).toBe(false);
     expect(screen.getByRole('app')).toHaveTextContent('xxx');
     expect(screen.getByRole('app')).toHaveTextContent('tom');
     expect(screen.getByRole('app')).toHaveTextContent('10');
