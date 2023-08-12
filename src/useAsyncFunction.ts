@@ -11,7 +11,6 @@ import {
   useRef,
   useState,
   useMemo,
-  useSyncExternalStore,
 } from "react";
 import type { PickPromiseType, PromiseFunction } from "./common";
 import { shallowEqual } from "./common";
