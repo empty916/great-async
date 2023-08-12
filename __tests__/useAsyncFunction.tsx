@@ -39,7 +39,6 @@ test('normal', async () => {
 });
 
 
-
 test('loadingId', async () => {
     const getUserInfo = async () => {
         await sleep(10);
@@ -70,7 +69,7 @@ test('loadingId', async () => {
             loadingId: 'app',
         });
         if (loading) {
-            return <span role="pending2">pending2</span>;
+            return <span role="loading2">loading2</span>;
         }
         return (
             <div role={'app2'}>
@@ -86,12 +85,12 @@ test('loadingId', async () => {
             <App2 />
         </>
     ));
-    expect(sharedLoadingStateManager.isPending('app')).toBe(true);
+    expect(sharedLoadingStateManager.isLoading('app')).toBe(true);
     expect(screen.getByRole('loading')).toHaveTextContent('loading');
-    expect(screen.getByRole('pending2')).toHaveTextContent('pending2');
+    expect(screen.getByRole('loading2')).toHaveTextContent('loading2');
     await waitFor(() => screen.getByRole('app'));
 
-    expect(sharedLoadingStateManager.isPending('app')).toBe(false);
+    expect(sharedLoadingStateManager.isLoading('app')).toBe(false);
     expect(screen.getByRole('app')).toHaveTextContent('xxx');
     expect(screen.getByRole('app')).toHaveTextContent('tom');
     expect(screen.getByRole('app')).toHaveTextContent('10');
@@ -99,6 +98,28 @@ test('loadingId', async () => {
     expect(screen.getByRole('app2')).toHaveTextContent('xxx');
     expect(screen.getByRole('app2')).toHaveTextContent('tom');
     expect(screen.getByRole('app2')).toHaveTextContent('10');
+
+
+    useAsyncFunction.showLoading('app');
+    await waitFor(() => screen.getByRole('loading'));
+
+    expect(sharedLoadingStateManager.isLoading('app')).toBe(true);
+    expect(screen.getByRole('loading')).toHaveTextContent('loading');
+    expect(screen.getByRole('loading2')).toHaveTextContent('loading2');
+    useAsyncFunction.hideLoading('app');
+
+    await waitFor(() => screen.getByRole('app'));
+
+    expect(sharedLoadingStateManager.isLoading('app')).toBe(false);
+    expect(screen.getByRole('app')).toHaveTextContent('xxx');
+    expect(screen.getByRole('app')).toHaveTextContent('tom');
+    expect(screen.getByRole('app')).toHaveTextContent('10');
+
+    expect(screen.getByRole('app2')).toHaveTextContent('xxx');
+    expect(screen.getByRole('app2')).toHaveTextContent('tom');
+    expect(screen.getByRole('app2')).toHaveTextContent('10');
+
+
 });
 
 test('ttl', async () => {

@@ -15,7 +15,7 @@ import {
 } from "react";
 import type { PickPromiseType, PromiseFunction } from "./common";
 import { shallowEqual } from "./common";
-import { sharedLoadingStateManager } from "./SharedLoadingStateManager";
+import { sharedLoadingStateManager, useLoadingState } from "./SharedLoadingStateManager";
 
 export interface AsyncFunctionState<T> {
   loading: boolean;
@@ -151,12 +151,7 @@ export const useAsyncFunction = <F extends PromiseFunction>(
   }
   stateRef.current.inited = true;
 
-  const sharedPendingState = useSyncExternalStore(
-    cb => sharedLoadingStateManager.subscribe(loadingId, cb),
-    () => sharedLoadingStateManager.isPending(loadingId),
-    () => sharedLoadingStateManager.isPending(loadingId),
-  );
-
+  const sharedLoadingState = useLoadingState(loadingId);
 
   const fnProxy = useMemo(() => {
     const fn1 = (...args: Parameters<F>) =>
@@ -266,7 +261,7 @@ export const useAsyncFunction = <F extends PromiseFunction>(
     runFn();
   }, [deps, runFn]);
 
-  const composedPendingState = asyncFunctionState.loading || sharedPendingState;
+  const composedPendingState = asyncFunctionState.loading || sharedLoadingState;
 
   return {
     data: asyncFunctionState.data,
@@ -278,3 +273,6 @@ export const useAsyncFunction = <F extends PromiseFunction>(
   } as UseAsyncFunctionReturn<F>;
 };
 
+
+useAsyncFunction.showLoading = (loadingId: string) => sharedLoadingStateManager.increment(loadingId);
+useAsyncFunction.hideLoading = (loadingId: string) => sharedLoadingStateManager.decrement(loadingId);

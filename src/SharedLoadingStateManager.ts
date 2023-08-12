@@ -1,3 +1,4 @@
+import { useSyncExternalStore } from "react";
 
 export class SharedLoadingStateManager {
   values = {} as Record<string, number>;
@@ -16,7 +17,7 @@ export class SharedLoadingStateManager {
       );
     };
   }
-  isPending(loadingId: string) {
+  isLoading(loadingId: string) {
     return this.values[loadingId] > 0;
   }
   init(loadingId: string) {
@@ -30,11 +31,20 @@ export class SharedLoadingStateManager {
     if (!loadingId) {
       return;
     }
+    if (this.values[loadingId] === undefined) {
+      this.init(loadingId);
+    }
     this.values[loadingId]++;
     this.emit(loadingId);
   }
   decrement(loadingId: string) {
     if (!loadingId) {
+      return;
+    }
+    if (this.values[loadingId] === undefined) {
+      this.init(loadingId);
+    }
+    if (this.values[loadingId] === 0) {
       return;
     }
     this.values[loadingId]--;
@@ -46,3 +56,15 @@ export class SharedLoadingStateManager {
 }
 
 export const sharedLoadingStateManager = new SharedLoadingStateManager();
+
+
+export const useLoadingState = (loadingId: string) => {
+
+  const loadingState = useSyncExternalStore(
+    cb => sharedLoadingStateManager.subscribe(loadingId, cb),
+    () => sharedLoadingStateManager.isLoading(loadingId),
+    () => sharedLoadingStateManager.isLoading(loadingId),
+  );
+
+  return loadingState
+}
