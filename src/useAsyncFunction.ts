@@ -115,6 +115,7 @@ export const useAsyncFunction = <F extends PromiseFunction>(
     depsRef: initDeps as DependencyList,
     id: {},
     inited: false,
+    hasIncremented: false,
   });
   const argsRef = useRef({
     asyncFn,
@@ -137,6 +138,7 @@ export const useAsyncFunction = <F extends PromiseFunction>(
   argsRef.current.deps = deps;
   argsRef.current.loadingId = loadingId;
 
+
   if (deps && !Array.isArray(deps)) {
     console.log("deps:", JSON.stringify(deps));
     throw new Error("The deps must be an Array!");
@@ -144,11 +146,28 @@ export const useAsyncFunction = <F extends PromiseFunction>(
 
   if (!stateRef.current.inited && loadingId) {
     sharedLoadingStateManager.init(loadingId);
+    // if (asyncFunctionState.loading) {
+    //   sharedLoadingStateManager.increment(loadingId);
+    // }
+  }
+
+
+  useEffect(() => {
     if (asyncFunctionState.loading) {
       sharedLoadingStateManager.increment(loadingId);
+      stateRef.current.hasIncremented = true;
+    } else if (stateRef.current.hasIncremented) {
+      sharedLoadingStateManager.decrement(loadingId);
     }
-  }
+    return () => {
+      if (asyncFunctionState.loading) {
+        sharedLoadingStateManager.decrement(loadingId);
+      }
+    }
+  }, [asyncFunctionState.loading, loadingId]);
+
   stateRef.current.inited = true;
+
 
   const sharedLoadingState = useLoadingState(loadingId);
 
@@ -165,7 +184,7 @@ export const useAsyncFunction = <F extends PromiseFunction>(
                 if (ov.loading) {
                   return ov;
                 }
-                sharedLoadingStateManager.increment(argsRef.current.loadingId);
+                // sharedLoadingStateManager.increment(argsRef.current.loadingId);
                 return {
                   ...ov,
                   loading: true,
@@ -186,7 +205,7 @@ export const useAsyncFunction = <F extends PromiseFunction>(
             if (ov.loading) {
               return ov;
             }
-            sharedLoadingStateManager.increment(argsRef.current.loadingId);
+            // sharedLoadingStateManager.increment(argsRef.current.loadingId);
             return {
               ...ov,
               loading: true,
@@ -199,7 +218,7 @@ export const useAsyncFunction = <F extends PromiseFunction>(
             if (!ov.loading && ov.error === null && ov.data === res) {
               return ov;
             }
-            sharedLoadingStateManager.decrement(argsRef.current.loadingId);
+            // sharedLoadingStateManager.decrement(argsRef.current.loadingId);
             return {
               loading: false,
               error: null,
@@ -212,7 +231,7 @@ export const useAsyncFunction = <F extends PromiseFunction>(
             if (!ov.loading && ov.error === err && ov.data === null) {
               return ov;
             }
-            sharedLoadingStateManager.decrement(argsRef.current.loadingId);
+            // sharedLoadingStateManager.decrement(argsRef.current.loadingId);
             return {
               error: err,
               loading: false,

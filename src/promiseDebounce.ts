@@ -3,7 +3,7 @@ import { defaultGenKeyByParams, DIMENSIONS, PromiseFunction, T_DIMENSIONS } from
 
 
 export function createPromiseDebounceFn<F extends PromiseFunction>(
-    fn: (...args: Parameters<F>) => ReturnType<F>,
+    fn: F,
     getKey: (...params: any[]) => string | symbol,
     isRetryFn?: boolean,
 ): (...args: Parameters<F>) => Promise<ReturnType<F>> {
@@ -31,7 +31,7 @@ export function createPromiseDebounceFn<F extends PromiseFunction>(
             return res[0].value;
         })
     }
-    return function (...args: Parameters<F>) {
+    return function (...args: any[]) {
         const runFnPromise = fn(...args);
         const key = getKey(isRetryFn ? args[0] : args);
         if (!runFnPromiseQueue.has(key)) {

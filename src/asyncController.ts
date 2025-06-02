@@ -157,9 +157,9 @@ export function createAsyncController<F extends PromiseFunction>(
 
   if (promiseDebounce) {
     if (debounceDimension === DIMENSIONS.FUNCTION) {
-      finalFn = createPromiseDebounceFn(retryFn as any, () => DEFAULT_PROMISE_DEBOUNCE_KEY) as any;
+      finalFn = createPromiseDebounceFn(retryFn as any, () => DEFAULT_PROMISE_DEBOUNCE_KEY);
     } else if (debounceDimension === DIMENSIONS.PARAMETERS) {
-      finalFn = createPromiseDebounceFn(retryFn as any, genKeyByParams, true) as any;
+      finalFn = createPromiseDebounceFn(retryFn as any, genKeyByParams, true);
     }
   }
 
