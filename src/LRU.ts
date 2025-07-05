@@ -19,7 +19,7 @@ export class LRU<K extends any = any, V extends any = any> extends Map<K, V> {
 		super.set(key, value);
 		if (this.size > this.capacity) {
 			const outKey = this.keys().next().value;
-			this.delete(outKey);
+			outKey && this.delete(outKey);
 		}
 		return this;
 	}

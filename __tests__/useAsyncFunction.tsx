@@ -1,13 +1,22 @@
-
 import { sleep } from '../src/utils';
 import { useAsyncFunction } from '../src';
 import '@testing-library/jest-dom/extend-expect';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, act } from '@testing-library/react';
 import { useEffect, useState } from 'react';
 import React from 'react';
 import { sharedLoadingStateManager } from '../src/SharedLoadingStateManager';
+import { 
+  createTrackedAsyncFunction, 
+  createErrorAsyncFunction, 
+  expectUserDataInDOM, 
+  waitForAppState,
+  waitForLoadingState,
+  DEFAULT_USER_DATA
+} from './test-helpers';
 
-test('normal', async () => {
+describe('useAsyncFunction', () => {
+  describe('Basic functionality', () => {
+    test('should load data successfully on mount', async () => {
     const getUserInfo = async () => {
         await sleep(10);
         return {
@@ -39,7 +48,7 @@ test('normal', async () => {
 });
 
 
-test('loadingId', async () => {
+test('should share loading state with same loadingId', async () => {
     const getUserInfo = async () => {
         await sleep(10);
         return {
@@ -100,13 +109,17 @@ test('loadingId', async () => {
     expect(screen.getByRole('app2')).toHaveTextContent('10');
 
 
-    useAsyncFunction.showLoading('app');
+    act(() => {
+        useAsyncFunction.showLoading('app');
+    });
     await waitFor(() => screen.getByRole('loading'));
 
     expect(sharedLoadingStateManager.isLoading('app')).toBe(true);
     expect(screen.getByRole('loading')).toHaveTextContent('loading');
     expect(screen.getByRole('loading2')).toHaveTextContent('loading2');
-    useAsyncFunction.hideLoading('app');
+    act(() => {
+        useAsyncFunction.hideLoading('app');
+    });
 
     await waitFor(() => screen.getByRole('app'));
 
@@ -122,7 +135,7 @@ test('loadingId', async () => {
 
 });
 
-test('ttl', async () => {
+test('should cache data with TTL configuration', async () => {
     let times = 0;
     const getUserInfo = async () => {
         times++;
@@ -165,7 +178,7 @@ test('ttl', async () => {
 });
 
 
-test('ttl and single', async () => {
+test('should combine TTL with single mode', async () => {
     let times = 0;
     const getUserInfo = async () => {
         times++;
@@ -207,7 +220,7 @@ test('ttl and single', async () => {
 
 
 
-test('error', async () => {
+test('should handle async function errors', async () => {
     const getUserInfo = async () => {
         await sleep(10);
         return Promise.reject(new Error('error message'));
@@ -232,7 +245,7 @@ test('error', async () => {
 });
 
 
-test('auto', async () => {
+test('should not auto-execute when auto is false', async () => {
     let times = 0;
     const getUserInfo = async () => {
         times++;
@@ -270,7 +283,7 @@ test('auto', async () => {
 });
 
 
-test('auto with error', async () => {
+test('should handle errors with auto false and debounce', async () => {
 
     const getUserInfo = async () => {
         await sleep(100);
@@ -308,7 +321,7 @@ test('auto with error', async () => {
     expect(screen.getByRole('app')).toHaveTextContent('error message');
 });
 
-test('single', async () => {
+test('should prevent duplicate calls in single mode', async () => {
     let times = 0;
     const getUserInfo = async () => {
         times++;
@@ -348,7 +361,7 @@ test('single', async () => {
     expect(times).toBe(1);
 });
 
-test('debounceTime', async () => {
+test('should debounce multiple rapid calls', async () => {
     let times = 0;
     const getUserInfo = async () => {
         times++;
@@ -390,7 +403,7 @@ test('debounceTime', async () => {
     expect(times).toBe(1);
 });
 
-test('debounceTime and auto', async () => {
+test('should debounce with auto false mode', async () => {
     let times = 0;
     const getUserInfo = async () => {
         times++;
@@ -434,7 +447,7 @@ test('debounceTime and auto', async () => {
     expect(times).toBe(1);
 });
 
-test('deps auto', async () => {
+test('should re-run when dependencies change', async () => {
     let times = 0;
     const getUserInfo = async () => {
         times++;
@@ -476,7 +489,7 @@ test('deps auto', async () => {
 });
 
 
-test('deps to auto', async () => {
+test('should respect auto flag with dependencies', async () => {
     let times = 0;
     const getUserInfo = async () => {
         times++;
@@ -517,7 +530,7 @@ test('deps to auto', async () => {
 });
 
 
-test('deps error', async () => {
+test('should throw error when deps is not an array', async () => {
     const getUserInfo = async () => {
         await sleep(10);
         return {
@@ -546,10 +559,17 @@ test('deps error', async () => {
             </div>
         );
     };
+    
+    // Suppress console.error for this test since we expect an error
+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    
     expect(() => render(<App />)).toThrow();
+    
+    // Restore console.error
+    consoleSpy.mockRestore();
 });
 
-test('deps and triggle multiply', async () => {
+test('deps and trigger multiple calls', async () => {
     let times = 0;
     const getUserInfo = async () => {
         times++;
@@ -590,7 +610,7 @@ test('deps and triggle multiply', async () => {
     expect(times).toBe(4);
 });
 
-test('deps and single', async () => {
+test('should combine dependencies with single mode', async () => {
     let times = 0;
     const getUserInfo = async () => {
         times++;
@@ -632,7 +652,7 @@ test('deps and single', async () => {
     expect(times).toBe(2);
 });
 
-test('deps and debounce', async () => {
+test('should combine dependencies with debounce', async () => {
     let times = 0;
     const getUserInfo = async () => {
         times++;
@@ -674,8 +694,62 @@ test('deps and debounce', async () => {
     expect(times).toBe(2);
 });
 
+it('should support auto="deps-only" mode - no auto-call on mount but auto-call on deps change', async () => {
+  const mockFn = jest.fn().mockResolvedValue({ name: 'test' });
+  let userId = '1';
+  
+  const App = () => {
+    const [currentUserId, setCurrentUserId] = useState(userId);
+    const { data, loading, fn } = useAsyncFunction(
+      () => mockFn(currentUserId),
+      { 
+        auto: 'deps-only',
+        deps: [currentUserId] 
+      }
+    );
+    
+    return (
+      <div>
+        <div data-testid="loading">{loading ? 'loading' : 'idle'}</div>
+        <div data-testid="data">{data ? (data as any).name : 'no data'}</div>
+        <button 
+          data-testid="change-deps" 
+          onClick={() => setCurrentUserId('2')}
+        >
+          Change User
+        </button>
+        <button 
+          data-testid="manual-trigger"
+          onClick={() => fn()}
+        >
+          Manual Trigger
+        </button>
+      </div>
+    );
+  };
 
+  const { getByTestId } = render(<App />);
+  
+  // Initially should not auto-call on mount
+  expect(getByTestId('loading')).toHaveTextContent('idle');
+  expect(getByTestId('data')).toHaveTextContent('no data');
+  expect(mockFn).not.toHaveBeenCalled();
 
+  // Manual trigger should work
+  fireEvent.click(getByTestId('manual-trigger'));
+  await waitFor(() => {
+    expect(getByTestId('data')).toHaveTextContent('test');
+  });
+  expect(mockFn).toHaveBeenCalledTimes(1);
+  expect(mockFn).toHaveBeenCalledWith('1');
 
+  // Changing deps should auto-call
+  fireEvent.click(getByTestId('change-deps'));
+  await waitFor(() => {
+    expect(mockFn).toHaveBeenCalledTimes(2);
+    expect(mockFn).toHaveBeenCalledWith('2');
+  });
+});
 
-
+  }); // end describe('Basic functionality')
+}); // end describe('useAsyncFunction')

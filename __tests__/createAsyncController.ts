@@ -13,14 +13,14 @@ test('normal', async () => {
 		}
 	});
 	
-	const queuen: any[] = [];
+	const queue: any[] = [];
 	for(let i = 0; i < 100; i++) {
 		// eslint-disable-next-line @typescript-eslint/no-loop-func
 		const promiseRes = getUserData();
-		queuen.push(promiseRes);
+		queue.push(promiseRes);
 	}
-	expect(queuen.length).toBe(100);
-	await Promise.all(queuen);
+	expect(queue.length).toBe(100);
+	await Promise.all(queue);
 	expect(times).toBe(100);
 
 });
@@ -39,13 +39,13 @@ test('single', async () => {
 		single: true,
 	});
 	
-	const queuen: any[] = [];
+	const queue: any[] = [];
 	for(let i = 0; i < 100; i++) {
 		const promiseRes = getUserData();
-		queuen.push(promiseRes);
+		queue.push(promiseRes);
 	}
-	expect(queuen.length).toBe(100);
-	const reslist = await Promise.all(queuen);
+	expect(queue.length).toBe(100);
+	const reslist = await Promise.all(queue);
 	expect([...new Set(reslist)].length).toBe(1);
 	expect(times).toBe(1);
 
@@ -68,13 +68,13 @@ test('single with parameter dimension 1', async () => {
 		singleDimension: DIMENSIONS.PARAMETERS
 	});
 	
-	const queuen: any[] = [];
+	const queue: any[] = [];
 	for(let i = 0; i < 100; i++) {
 		const promiseRes = getUserData(i);
-		queuen.push(promiseRes);
+		queue.push(promiseRes);
 	}
-	expect(queuen.length).toBe(100);
-	const reslist = await Promise.all(queuen);
+	expect(queue.length).toBe(100);
+	const reslist = await Promise.all(queue);
 	expect([...new Set(reslist)].length).toBe(100);
 	expect(times).toBe(100);
 
@@ -97,13 +97,13 @@ test('single with parameter dimension 2', async () => {
 		singleDimension: DIMENSIONS.PARAMETERS
 	});
 	
-	const queuen: any[] = [];
+	const queue: any[] = [];
 	for(let i = 0; i < 100; i++) {
 		const promiseRes = getUserData(i % 3);
-		queuen.push(promiseRes);
+		queue.push(promiseRes);
 	}
-	expect(queuen.length).toBe(100);
-	const reslist = await Promise.all(queuen);
+	expect(queue.length).toBe(100);
+	const reslist = await Promise.all(queue);
 	expect([...new Set(reslist)].length).toBe(3);
 	expect(times).toBe(3);
 });
@@ -122,16 +122,61 @@ test('debounce time', async () => {
 		debounceTime: 90,
 	});
 	
-	const queuen: any[] = [];
+	const queue: any[] = [];
 	for(let i = 0; i < 100; i++) {
 		// eslint-disable-next-line @typescript-eslint/no-loop-func
 		const promiseRes = getUserData();
-		queuen.push(promiseRes);
+		queue.push(promiseRes);
 	}
-	expect(queuen.length).toBe(100);
-	const reslist = await Promise.all(queuen);
+	expect(queue.length).toBe(100);
+	const reslist = await Promise.all(queue);
 	expect([...new Set(reslist)].length).toBe(1);
 	expect(times).toBe(1);
+
+});
+
+
+
+
+test('promise and time debounce ', async () => {
+	let times = 0;
+	const getUserData = createAsyncController(async (type: '1'|'2' = '1') => {
+		times++;
+		await sleep(200);
+		if (type === '1') {
+			return {
+				name: 'tom',
+				age: 10
+			}
+		} else {
+			return {
+				name: 'jerry',
+				age: 10
+			}
+		}
+	}, {
+		debounceTime: 90,
+		promiseDebounce: true,
+	});
+	
+	const queue: any[] = [];
+	for(let i = 0; i < 100; i++) {
+		// eslint-disable-next-line @typescript-eslint/no-loop-func
+		const promiseRes = getUserData();
+		queue.push(promiseRes);
+	}
+	await sleep(120);
+	// now after 120 + 90 + 100 seconds, the promiseRes will be resolved
+	const promiseRes = getUserData('2');
+	queue.push(promiseRes);
+	expect(queue.length).toBe(101);
+	const reslist = await Promise.all(queue);
+	expect([...new Set(reslist)].length).toBe(1);
+	expect([...new Set(reslist)][0]).toEqual({
+		name: 'jerry',
+		age: 10
+	});
+	expect(times).toBe(2);
 
 });
 
@@ -151,13 +196,13 @@ test('debounce time with parameter dimension 1', async () => {
 		debounceDimension: DIMENSIONS.PARAMETERS
 	});
 	
-	const queuen: any[] = [];
+	const queue: any[] = [];
 	for(let i = 0; i < 100; i++) {
 		const promiseRes = getUserData(i);
-		queuen.push(promiseRes);
+		queue.push(promiseRes);
 	}
-	expect(queuen.length).toBe(100);
-	const reslist = await Promise.all(queuen);
+	expect(queue.length).toBe(100);
+	const reslist = await Promise.all(queue);
 	expect([...new Set(reslist)].length).toBe(100);
 	expect(times).toBe(100);
 
@@ -179,13 +224,13 @@ test('debounce time with parameter dimension 2', async () => {
 		debounceDimension: DIMENSIONS.PARAMETERS
 	});
 	
-	const queuen: any[] = [];
+	const queue: any[] = [];
 	for(let i = 0; i < 100; i++) {
 		const promiseRes = getUserData(i % 3);
-		queuen.push(promiseRes);
+		queue.push(promiseRes);
 	}
-	expect(queuen.length).toBe(100);
-	const reslist = await Promise.all(queuen);
+	expect(queue.length).toBe(100);
+	const reslist = await Promise.all(queue);
 	expect([...new Set(reslist)].length).toBe(3);
 	expect(times).toBe(3);
 
