@@ -126,7 +126,7 @@ export const useAsyncFunction = <F extends PromiseFunction>(
     deps,
     manual,
     auto = true,
-    loadingId = '',
+    loadingId,
     swr = false,
     onBackgroundUpdate,
     ...createAsyncControllerOptions
@@ -160,7 +160,7 @@ export const useAsyncFunction = <F extends PromiseFunction>(
   argsRef.current.manual = manual;
   argsRef.current.auto = auto;
   argsRef.current.deps = deps;
-  argsRef.current.loadingId = loadingId;
+  argsRef.current.loadingId = loadingId || '';
   argsRef.current.onBackgroundUpdate = onBackgroundUpdate;
 
 
@@ -170,30 +170,34 @@ export const useAsyncFunction = <F extends PromiseFunction>(
 
   if (!stateRef.current.inited && loadingId) {
     sharedLoadingStateManager.init(loadingId);
-    // if (asyncFunctionState.loading) {
-    //   sharedLoadingStateManager.increment(loadingId);
-    // }
-  }
-
-
-  useEffect(() => {
-    if (asyncFunctionState.loading) {
+    stateRef.current.inited = true;
+    if(asyncFunctionState.loading) {
       sharedLoadingStateManager.increment(loadingId);
       stateRef.current.hasIncremented = true;
-    } else if (stateRef.current.hasIncremented) {
-      sharedLoadingStateManager.decrement(loadingId);
     }
+  }
+
+  useEffect(() => {
+    if (!loadingId) return; // Skip shared state management if no loadingId
+    
+    if (asyncFunctionState.loading && !stateRef.current.hasIncremented) {
+      sharedLoadingStateManager.increment(loadingId); // Only increment when needed
+      stateRef.current.hasIncremented = true;
+    } else if (!asyncFunctionState.loading && stateRef.current.hasIncremented) {
+      sharedLoadingStateManager.decrement(loadingId); // Correctly handle state change
+      stateRef.current.hasIncremented = false;
+    }
+    
     return () => {
-      if (asyncFunctionState.loading) {
-        sharedLoadingStateManager.decrement(loadingId);
+      if (stateRef.current.hasIncremented) {
+        sharedLoadingStateManager.decrement(loadingId); // Cleanup on unmount
+        stateRef.current.hasIncremented = false;
       }
     }
   }, [asyncFunctionState.loading, loadingId]);
 
-  stateRef.current.inited = true;
 
-
-  const sharedLoadingState = useLoadingState(loadingId);
+  const sharedLoadingState = useLoadingState(loadingId || '');
 
   const fnProxy = useMemo(() => {
     const fn1 = (...args: Parameters<F>) =>
