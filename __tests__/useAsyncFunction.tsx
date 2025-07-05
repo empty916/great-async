@@ -694,5 +694,62 @@ test('should combine dependencies with debounce', async () => {
     expect(times).toBe(2);
 });
 
+it('should support auto="deps-only" mode - no auto-call on mount but auto-call on deps change', async () => {
+  const mockFn = jest.fn().mockResolvedValue({ name: 'test' });
+  let userId = '1';
+  
+  const App = () => {
+    const [currentUserId, setCurrentUserId] = useState(userId);
+    const { data, loading, fn } = useAsyncFunction(
+      () => mockFn(currentUserId),
+      { 
+        auto: 'deps-only',
+        deps: [currentUserId] 
+      }
+    );
+    
+    return (
+      <div>
+        <div data-testid="loading">{loading ? 'loading' : 'idle'}</div>
+        <div data-testid="data">{data ? (data as any).name : 'no data'}</div>
+        <button 
+          data-testid="change-deps" 
+          onClick={() => setCurrentUserId('2')}
+        >
+          Change User
+        </button>
+        <button 
+          data-testid="manual-trigger"
+          onClick={() => fn()}
+        >
+          Manual Trigger
+        </button>
+      </div>
+    );
+  };
+
+  const { getByTestId } = render(<App />);
+  
+  // Initially should not auto-call on mount
+  expect(getByTestId('loading')).toHaveTextContent('idle');
+  expect(getByTestId('data')).toHaveTextContent('no data');
+  expect(mockFn).not.toHaveBeenCalled();
+
+  // Manual trigger should work
+  fireEvent.click(getByTestId('manual-trigger'));
+  await waitFor(() => {
+    expect(getByTestId('data')).toHaveTextContent('test');
+  });
+  expect(mockFn).toHaveBeenCalledTimes(1);
+  expect(mockFn).toHaveBeenCalledWith('1');
+
+  // Changing deps should auto-call
+  fireEvent.click(getByTestId('change-deps'));
+  await waitFor(() => {
+    expect(mockFn).toHaveBeenCalledTimes(2);
+    expect(mockFn).toHaveBeenCalledWith('2');
+  });
+});
+
   }); // end describe('Basic functionality')
 }); // end describe('useAsyncFunction')

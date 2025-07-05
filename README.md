@@ -1,13 +1,13 @@
 # great-async
 
-🚀 A powerful async operation library that makes React async operations effortless, with built-in caching, SWR, debouncing, and more.
+🚀 A powerful async operation library that makes async operations effortless, with built-in caching, SWR, debouncing, and more.
 
 [![npm version](https://badge.fury.io/js/great-async.svg)](https://badge.fury.io/js/great-async)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## Why great-async?
 
-- 🎯 **Simple API** - Easy to use, powerful features
+- 🎯 **Framework Agnostic** - Works with any JavaScript environment
 - ⚡ **SWR Pattern** - Show cached data instantly, update in background
 - 🔄 **Smart Caching** - TTL and LRU cache strategies
 - 🚫 **Duplicate Prevention** - Merge identical concurrent requests
@@ -15,140 +15,294 @@
 - ⏰ **Debouncing** - Control when functions execute
 - ⚛️ **React Ready** - Built-in hooks with loading states
 
-## Quick Start
+## Installation
 
 ```bash
 npm install great-async
 ```
 
-```tsx
-import { useAsyncFunction } from 'great-async';
+## Core API - createAsyncController
 
-function UserProfile({ userId }) {
-  const { data, loading } = useAsyncFunction(
-    () => fetch(`/api/users/${userId}`).then(res => res.json()),
-    { deps: [userId] }
-  );
+The heart of `great-async` is `createAsyncController` - a framework-agnostic function that enhances any async function with powerful features.
 
-  if (loading) return <div>Loading...</div>;
-  return <div>Hello, {data.name}!</div>;
-}
-```
+### Basic Usage
 
-## Core Features
+```typescript
+import { createAsyncController } from 'great-async';
+// or for tree-shaking
+import { createAsyncController } from 'great-async/asyncController';
 
-### 🎯 1. Basic Async Operations
+// Enhance any async function
+const fetchUserData = async (userId: string) => {
+  const response = await fetch(`/api/users/${userId}`);
+  return response.json();
+};
 
-Perfect for simple API calls with automatic loading states.
-
-```tsx
-const { data, loading, error, fn } = useAsyncFunction(fetchUserData);
-
-// data: your API response
-// loading: true during request
-// error: any thrown errors
-// fn: manually trigger the request
-```
-
-### ⚡ 2. SWR (Stale-While-Revalidate)
-
-Show cached data instantly while updating in the background.
-
-```tsx
-const { data, loading, backgroundUpdating } = useAsyncFunction(fetchUserData, {
-  swr: true,        // Enable SWR
-  ttl: 60000,       // Cache for 1 minute
+const enhancedFetch = createAsyncController(fetchUserData, {
+  ttl: 60000, // Cache for 1 minute
+  swr: true,  // Enable stale-while-revalidate
 });
 
-// First load: shows loading
-// Next loads: shows cached data immediately + updates background
+// Use it like the original function
+const userData = await enhancedFetch('123');
 ```
 
-**Perfect for:** User profiles, dashboard data, any content that doesn't change frequently.
+### Core Features
 
-### 🔄 3. Smart Caching
+#### 🔄 Smart Caching
 
-Multiple caching strategies to optimize performance.
-
-```tsx
-// Time-based cache (TTL)
-useAsyncFunction(fetchData, {
-  ttl: 5 * 60 * 1000,  // Cache for 5 minutes
+```typescript
+const cachedAPI = createAsyncController(fetchData, {
+  ttl: 5 * 60 * 1000,     // Cache for 5 minutes
+  cacheCapacity: 100,      // LRU cache with max 100 items
 });
 
-// Size-based cache (LRU)
-useAsyncFunction(fetchData, {
-  cacheCapacity: 100,  // Keep last 100 results
-});
+// First call: hits the API
+const data1 = await cachedAPI('param1');
 
-// Combined
-useAsyncFunction(fetchData, {
+// Second call within 5 minutes: returns cached data
+const data2 = await cachedAPI('param1'); // ⚡ Instant!
+```
+
+#### ⚡ SWR (Stale-While-Revalidate)
+
+Perfect for improving perceived performance:
+
+```typescript
+const swrAPI = createAsyncController(fetchUserProfile, {
+  swr: true,
   ttl: 60000,
-  cacheCapacity: 50,
+  onBackgroundUpdate: (freshData, error) => {
+    if (freshData) console.log('Data updated in background!');
+    if (error) console.error('Background update failed:', error);
+  },
 });
+
+// First call: normal API request
+await swrAPI('user123');
+
+// Subsequent calls: instant cached response + background update
+const profile = await swrAPI('user123'); // ⚡ Returns cached data immediately
+// Background: fetches fresh data and updates cache
 ```
 
-### 🚫 4. Duplicate Request Prevention
+#### 🚫 Promise Debounce
 
-Automatically merge identical concurrent requests.
+When multiple identical requests are made, only the latest one's result is used and all pending requests share its result:
 
-```tsx
-const searchController = createAsyncController(searchAPI, {
+```typescript
+const searchAPI = createAsyncController(performSearch, {
   promiseDebounce: true,
 });
 
-// Multiple calls with same params = single request
-const result1 = searchController('react');
-const result2 = searchController('react'); // Reuses result1
-const result3 = searchController('vue');   // New request
+// Make multiple calls in quick succession
+const promise1 = searchAPI('react'); // Starts execution
+const promise2 = searchAPI('react'); // Starts execution, promise1 result will be discarded
+const promise3 = searchAPI('react'); // Starts execution, promise1 & promise2 results will be discarded
+
+// All promises resolve with the result from the final (3rd) call
+const [result1, result2, result3] = await Promise.all([promise1, promise2, promise3]);
+console.log(result1 === result2 && result2 === result3); // true - all use result from promise3
 ```
 
-**Perfect for:** Search autocomplete, rapid user interactions, preventing API spam.
+#### ⏰ Debouncing
 
-### ⏰ 5. Debouncing
+Control when functions execute:
 
-Control when functions execute to optimize performance.
+```typescript
+import { DIMENSIONS } from 'great-async/asyncController';
 
-```tsx
-// Time-based debouncing
-useAsyncFunction(searchAPI, {
-  debounceTime: 300,  // Wait 300ms after last call
-});
-
-// Function-level or parameter-level debouncing
-createAsyncController(searchAPI, {
+const debouncedSearch = createAsyncController(searchAPI, {
   debounceTime: 300,
-  debounceDimension: DIMENSIONS.PARAMETERS, // Debounce per unique params
+  debounceDimension: DIMENSIONS.PARAMETERS, // Debounce per unique parameters
 });
+
+// Rapid calls - only the last one executes
+debouncedSearch('re');
+debouncedSearch('rea');
+debouncedSearch('react'); // Only this call will execute after 300ms
 ```
 
-### 🔁 6. Auto Retry
+#### 🔁 Smart Retry Logic
 
-Intelligent retry logic with customizable strategies.
+Handle failures gracefully:
 
-```tsx
-useAsyncFunction(fetchData, {
+```typescript
+const resilientAPI = createAsyncController(fetchData, {
   retryCount: 3,
   retryStrategy: (error) => {
     // Retry on server errors, not client errors
     return error.status >= 500;
   },
 });
+
+// Automatically retries up to 3 times on 5xx errors
+const data = await resilientAPI('important-data');
 ```
 
-### 📦 7. Single Mode
+#### 📦 Single Mode
 
-Prevent multiple concurrent executions.
+Prevent concurrent executions - all pending requests share the result of the first ongoing request:
+
+```typescript
+const singletonAPI = createAsyncController(heavyOperation, {
+  single: true,
+});
+
+// Multiple calls during first request execution
+const promise1 = singletonAPI('data1'); // Executes immediately
+const promise2 = singletonAPI('data2'); // Waits and shares result from first call
+const promise3 = singletonAPI('data3'); // Waits and shares result from first call
+
+// All promises resolve with the same result from the first call
+const [result1, result2, result3] = await Promise.all([promise1, promise2, promise3]);
+console.log(result1 === result2 && result2 === result3); // true
+```
+
+### Real-World Examples
+
+#### 🌐 Node.js API Client
+
+```typescript
+import { createAsyncController, DIMENSIONS } from 'great-async/asyncController';
+
+class APIClient {
+  private cachedGet = createAsyncController(this.httpGet, {
+    ttl: 5 * 60 * 1000,        // 5 minute cache
+    cacheCapacity: 200,         // LRU cache
+    retryCount: 3,              // Retry failed requests
+    retryStrategy: (error) => error.status >= 500,
+  });
+
+  private debouncedSearch = createAsyncController(this.httpGet, {
+    debounceTime: 300,
+    debounceDimension: DIMENSIONS.PARAMETERS,
+    promiseDebounce: true,      // Latest search wins, discard previous identical searches
+  });
+
+  async getUser(id: string) {
+    return this.cachedGet(`/users/${id}`);
+  }
+
+  async search(query: string) {
+    return this.debouncedSearch(`/search?q=${query}`);
+  }
+
+  private async httpGet(url: string) {
+    const response = await fetch(`https://api.example.com${url}`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return response.json();
+  }
+}
+```
+
+#### 🔍 Advanced Search System
+
+```typescript
+const createSearchController = (endpoint: string) => {
+  return createAsyncController(
+    async (query: string) => {
+      const response = await fetch(`${endpoint}?q=${encodeURIComponent(query)}`);
+      return response.json();
+    },
+    {
+      // Performance optimizations
+      debounceTime: 300,           // Wait for user to stop typing
+      promiseDebounce: true,       // Latest search wins, discard previous identical searches
+      
+      // Caching strategy
+      swr: true,                   // Show cached results instantly
+      ttl: 2 * 60 * 1000,         // Cache for 2 minutes
+      cacheCapacity: 50,           // Keep last 50 searches
+      
+      // Reliability
+      retryCount: 2,
+      retryStrategy: (error) => error.status >= 500,
+      
+      // Callbacks
+      onBackgroundUpdate: (results, error) => {
+        if (error) console.warn('Search cache update failed:', error);
+      },
+    }
+  );
+};
+
+const searchProducts = createSearchController('/api/products/search');
+const searchUsers = createSearchController('/api/users/search');
+
+// Usage
+const products = await searchProducts('laptop');    // Fresh search
+const moreProducts = await searchProducts('laptop'); // ⚡ Cached + background update
+```
+
+## React Integration - useAsyncFunction
+
+For React applications, `great-async` provides `useAsyncFunction` hook that builds on top of `createAsyncController`:
+
+### Basic React Usage
 
 ```tsx
-useAsyncFunction(fetchData, {
-  single: true,  // Only one request at a time
-});
+import { useAsyncFunction } from 'great-async';
+// or for tree-shaking
+import { useAsyncFunction } from 'great-async/useAsyncFunction';
+
+function UserProfile({ userId }: { userId: string }) {
+  const { data, loading, error } = useAsyncFunction(
+    () => fetch(`/api/users/${userId}`).then(res => res.json()),
+    { deps: [userId] } // Re-run when userId changes
+  );
+
+  if (loading) return <div>Loading...</div>;
+  if (error) return <div>Error: {error.message}</div>;
+  return <div>Hello, {data.name}!</div>;
+}
+
+// Advanced: Control when requests are triggered
+function SearchResults({ query }: { query: string }) {
+  const { data, loading, fn: search } = useAsyncFunction(
+    () => searchAPI(query),
+    { 
+      auto: 'deps-only', // Only search when query changes, not on mount
+      deps: [query],
+    }
+  );
+
+  return (
+    <div>
+      <button onClick={() => search()}>Search Now</button>
+      {loading && <div>Searching...</div>}
+      {data?.map(item => <div key={item.id}>{item.title}</div>)}
+    </div>
+  );
+}
 ```
 
-## Real-World Examples
+### React-Specific Features
 
-### 📱 User Dashboard with SWR
+#### 📱 Shared Loading States
+
+Share loading states across multiple components:
+
+```tsx
+import { useAsyncFunction } from 'great-async/useAsyncFunction';
+import { useLoadingState } from 'great-async/SharedLoadingStateManager';
+
+function UserProfile() {
+  const { data } = useAsyncFunction(fetchUser, {
+    loadingId: 'user-data', // Shared loading identifier
+  });
+  
+  return <div>User: {data?.name}</div>;
+}
+
+function LoadingIndicator() {
+  const isLoading = useLoadingState('user-data'); // Reacts to same loading state
+  
+  return isLoading ? <div>Loading user...</div> : null;
+}
+```
+
+#### 🔄 React SWR Pattern
 
 ```tsx
 function Dashboard() {
@@ -172,7 +326,7 @@ function Dashboard() {
 }
 ```
 
-### 🔍 Search with Debouncing
+#### 🔍 Search with Debouncing
 
 ```tsx
 function SearchBox() {
@@ -183,7 +337,7 @@ function SearchBox() {
     {
       deps: [query],
       debounceTime: 300,     // Wait for user to stop typing
-      promiseDebounce: true, // Merge identical searches
+      promiseDebounce: true, // Latest search wins, discard previous identical searches
       auto: query.length > 2, // Only search with 3+ characters
     }
   );
@@ -202,63 +356,41 @@ function SearchBox() {
 }
 ```
 
-### 💪 Robust API Call with All Features
+#### 🎯 Conditional Auto-Execution
+
+Control when automatic requests are triggered:
 
 ```tsx
-function ProductList() {
-  const { data, loading, error, backgroundUpdating, fn } = useAsyncFunction(
-    fetchProducts,
+function UserSettings({ userId }: { userId: string }) {
+  const [filters, setFilters] = useState({ category: '', status: '' });
+  
+  // Only auto-fetch when filters change, not on initial mount
+  const { data: settings, loading, fn: refetch } = useAsyncFunction(
+    () => fetchUserSettings(userId, filters),
     {
-      // Caching
-      swr: true,
-      ttl: 5 * 60 * 1000,    // 5 minute cache
-      cacheCapacity: 100,     // LRU cache
-      
-      // Performance
-      debounceTime: 200,
-      promiseDebounce: true,
-      single: true,
-      
-      // Reliability
-      retryCount: 3,
-      retryStrategy: (error) => error.status >= 500,
-      
-      // User Experience
-      onBackgroundUpdate: (data, error) => {
-        if (error) toast.error('Failed to refresh products');
-        else toast.success('Products updated!');
-      },
+      auto: 'deps-only',  // Don't auto-call on mount, only when deps change
+      deps: [userId, filters],
     }
   );
 
-  if (loading && !data) return <div>Loading products...</div>;
-  if (error) return <div>Error: {error.message}</div>;
-
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <h1>Products</h1>
-        {backgroundUpdating && <span>🔄</span>}
-        <button onClick={fn}>Refresh</button>
-      </div>
-      {data?.map(product => (
-        <div key={product.id}>{product.name}</div>
-      ))}
+      <button onClick={() => refetch()}>Load Settings</button>
+      <FilterControls 
+        filters={filters} 
+        onChange={setFilters} // Will trigger auto-fetch when changed
+      />
+      {loading && <div>Loading...</div>}
+      {settings && <SettingsPanel data={settings} />}
     </div>
   );
 }
 ```
+```
 
 ## API Reference
 
-### useAsyncFunction(asyncFn, options)
-
-#### Basic Options
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `auto` | `boolean` | `true` | Auto-call on mount |
-| `deps` | `Array` | `[]` | Re-run when dependencies change |
-| `loadingId` | `string` | `''` | Share loading state across components |
+### createAsyncController(asyncFn, options)
 
 #### Caching Options
 | Option | Type | Default | Description |
@@ -271,8 +403,10 @@ function ProductList() {
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `debounceTime` | `number` | `-1` | Debounce delay in milliseconds |
-| `promiseDebounce` | `boolean` | `false` | Merge identical concurrent requests |
-| `single` | `boolean` | `false` | Allow only one execution at a time |
+| `debounceDimension` | `DIMENSIONS` | `FUNCTION` | Debounce scope |
+| `promiseDebounce` | `boolean` | `false` | Latest request wins - discard previous identical requests |
+| `single` | `boolean` | `false` | Share result of first ongoing request with all pending requests |
+| `singleDimension` | `DIMENSIONS` | `FUNCTION` | Single mode scope |
 
 #### Reliability Options
 | Option | Type | Default | Description |
@@ -283,10 +417,22 @@ function ProductList() {
 #### Callbacks
 | Option | Type | Description |
 |--------|------|-------------|
+| `beforeRun` | `() => void` | Called before function execution |
 | `onBackgroundUpdate` | `(data, error) => void` | Called when SWR background update completes |
+| `onBackgroundUpdateStart` | `(cachedData) => void` | Called when SWR background update starts |
 
-### Return Values
+### useAsyncFunction(asyncFn, options)
 
+Extends `createAsyncController` options with React-specific features:
+
+#### React-Specific Options
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `auto` | `boolean \| 'deps-only'` | `true` | Control auto-execution behavior:<br/>• `true`: Auto-call on mount and deps change<br/>• `false`: Manual execution only<br/>• `'deps-only'`: Auto-call only when deps change |
+| `deps` | `Array` | `[]` | Re-run when dependencies change |
+| `loadingId` | `string` | `''` | Share loading state across components |
+
+#### Return Values
 | Property | Type | Description |
 |----------|------|-------------|
 | `data` | `T \| null` | The result data |
@@ -296,25 +442,18 @@ function ProductList() {
 | `fn` | `Function` | Manually trigger the async function |
 | `clearCache` | `Function` | Clear cached data |
 
-## createAsyncController(asyncFn, options)
+## Subpath Imports
 
-For non-React environments or when you need more control:
+Starting from version 1.0.7-beta5, you can import individual modules:
 
-```ts
-import { createAsyncController } from 'great-async';
-
-const apiController = createAsyncController(fetchData, {
-  ttl: 60000,
-  swr: true,
-  retryCount: 3,
-});
-
-// Use like the original function
-const result = await apiController(params);
-
-// Clear cache when needed
-apiController.clearCache();
+```typescript
+// Import only what you need
+import { createAsyncController } from 'great-async/asyncController';
+import { useAsyncFunction } from 'great-async/useAsyncFunction';
+import { LRU } from 'great-async/LRU';
 ```
+
+See [EXPORTS_USAGE.md](./EXPORTS_USAGE.md) for complete details.
 
 ## Migration Guide
 
@@ -336,16 +475,18 @@ apiController.clearCache();
 + const { data, loading } = useAsyncFunction(fetchUser, { ttl: 300000 })
 ```
 
-
 ## Best Practices
 
 ### ✅ Do's
 
+- Start with `createAsyncController` for framework-agnostic code
 - Use `swr: true` for data that doesn't change often
 - Set appropriate `ttl` values based on data freshness needs
 - Use `debounceTime` for user input-triggered requests
 - Implement `retryStrategy` for better error handling
-- Use `deps` array to control when requests re-run
+- Use `deps` array in React to control when requests re-run
+- Use `auto: 'deps-only'` for conditional data loading (e.g., search, filters)
+- Prefer `auto: false` for expensive operations that should be manually triggered
 
 ### ❌ Don'ts
 

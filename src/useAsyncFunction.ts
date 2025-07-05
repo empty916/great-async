@@ -37,9 +37,12 @@ export interface UseAsyncFunctionOptions<F extends PromiseFunction>
   manual?: boolean;
   /**
    * @description whether to call fn automatically
+   * - true: auto-call on mount and when deps change
+   * - false: never auto-call (manual mode)
+   * - 'deps-only': only auto-call when deps change, not on mount
    * @default true
    */
-  auto?: boolean;
+  auto?: boolean | 'deps-only';
   /**
    * When using usAsyncFunction in different components and giving them the same loadingId, they will share the "loading" state.
    */
@@ -142,7 +145,7 @@ export const useAsyncFunction = <F extends PromiseFunction>(
     asyncFn,
     deps: undefined as DependencyList | undefined,
     manual: manual,
-    auto: true,
+    auto: auto,
     loadingId: '',
     onBackgroundUpdate: onBackgroundUpdate,
   });
@@ -150,7 +153,7 @@ export const useAsyncFunction = <F extends PromiseFunction>(
   const [asyncFunctionState, setAsyncFunctionState] = useState<
     AsyncFunctionState<PickPromiseType<F> | null>
   >({
-    loading: manual === undefined ? auto : !manual,
+    loading: manual === undefined ? (auto === true) : !manual,
     error: null,
     data: null,
   });
@@ -305,7 +308,8 @@ export const useAsyncFunction = <F extends PromiseFunction>(
       stateRef.current.depsRef = ld;
     }
     stateRef.current.isMounted = true;
-    if (argsRef.current.manual ?? !argsRef.current.auto) {
+    // Skip auto-call on mount if manual is true or auto is false/deps-only
+    if (argsRef.current.manual ?? (argsRef.current.auto === false || argsRef.current.auto === 'deps-only')) {
       return;
     }
     // @ts-ignore
@@ -321,7 +325,8 @@ export const useAsyncFunction = <F extends PromiseFunction>(
       return;
     }
     stateRef.current.depsRef = ld!;
-    if (argsRef.current.manual ?? !argsRef.current.auto) {
+    // Allow auto-call on deps change if manual is false and auto is true or 'deps-only'
+    if (argsRef.current.manual ?? (argsRef.current.auto === false)) {
       return;
     }
     // @ts-ignore
