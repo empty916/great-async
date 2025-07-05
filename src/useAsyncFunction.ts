@@ -1,4 +1,3 @@
-
 import type {
   ClearCache,
   CreateAsyncControllerOptions,
@@ -45,6 +44,18 @@ export interface UseAsyncFunctionOptions<F extends PromiseFunction>
    * When using usAsyncFunction in different components and giving them the same loadingId, they will share the "loading" state.
    */
   loadingId?: string;
+  /**
+   * Enable stale-while-revalidate pattern
+   * When true, if cache exists, return cached data immediately and update cache in background
+   * @default false
+   */
+  swr?: boolean;
+  /**
+   * Callback when background update completes
+   * @param data The updated data
+   * @param error The error if update failed
+   */
+  onBackgroundUpdate?: (data?: PickPromiseType<F>, error?: any) => void;
 }
 
 export type UseAsyncFunctionReturn<F extends PromiseFunction> =
@@ -63,6 +74,10 @@ export type UseAsyncFunctionReturn<F extends PromiseFunction> =
        * promise's error value
        */
       error: any;
+      /**
+       * Whether background update is in progress (for stale-while-revalidate)
+       */
+      backgroundUpdating: boolean;
       /**
        * * please use fn instead \
        * proxy of first parameter, usage is same as first parameter. \
@@ -84,6 +99,10 @@ export type UseAsyncFunctionReturn<F extends PromiseFunction> =
        */
       loading: false;
       error: any;
+      /**
+       * Whether background update is in progress (for stale-while-revalidate)
+       */
+      backgroundUpdating: boolean;
       /**
        * please use fn instead \
        * proxy of first parameter, usage is same as first parameter. \
@@ -108,6 +127,8 @@ export const useAsyncFunction = <F extends PromiseFunction>(
     manual,
     auto = true,
     loadingId = '',
+    swr = false,
+    onBackgroundUpdate,
     ...createAsyncControllerOptions
   } = opts;
   const stateRef = useRef({
@@ -123,6 +144,7 @@ export const useAsyncFunction = <F extends PromiseFunction>(
     manual: manual,
     auto: true,
     loadingId: '',
+    onBackgroundUpdate: onBackgroundUpdate,
   });
   const [createAsyncControllerOpts] = useState(createAsyncControllerOptions);
   const [asyncFunctionState, setAsyncFunctionState] = useState<
@@ -132,15 +154,17 @@ export const useAsyncFunction = <F extends PromiseFunction>(
     error: null,
     data: null,
   });
+  const [backgroundUpdating, setBackgroundUpdating] = useState(false);
+
   argsRef.current.asyncFn = asyncFn;
   argsRef.current.manual = manual;
   argsRef.current.auto = auto;
   argsRef.current.deps = deps;
   argsRef.current.loadingId = loadingId;
+  argsRef.current.onBackgroundUpdate = onBackgroundUpdate;
 
 
   if (deps && !Array.isArray(deps)) {
-    console.log("deps:", JSON.stringify(deps));
     throw new Error("The deps must be an Array!");
   }
 
@@ -176,6 +200,29 @@ export const useAsyncFunction = <F extends PromiseFunction>(
       argsRef.current.asyncFn(...(args as any));
     return createAsyncController(fn1 as F, {
       ...createAsyncControllerOpts,
+      swr,
+      onBackgroundUpdateStart: swr ? (cachedData?: PickPromiseType<F>) => {
+        // Background update is starting, set backgroundUpdating state
+        setBackgroundUpdating(true);
+      } : undefined,
+      onBackgroundUpdate: swr ? (data?: PickPromiseType<F>, error?: any) => {
+        // Background update completed, update data and clear background updating state
+        if (data !== undefined) {
+          setAsyncFunctionState(prev => ({
+            ...prev,
+            data,
+            error: null,
+          }));
+        }
+        if (error) {
+          setAsyncFunctionState(prev => ({
+            ...prev,
+            error,
+          }));
+        }
+        setBackgroundUpdating(false);
+        argsRef.current.onBackgroundUpdate?.(data, error);
+      } : undefined,
       beforeRun:
         createAsyncControllerOpts.debounceTime !== -1 ||
         createAsyncControllerOpts.beforeRun
@@ -184,7 +231,6 @@ export const useAsyncFunction = <F extends PromiseFunction>(
                 if (ov.loading) {
                   return ov;
                 }
-                // sharedLoadingStateManager.increment(argsRef.current.loadingId);
                 return {
                   ...ov,
                   loading: true,
@@ -194,31 +240,31 @@ export const useAsyncFunction = <F extends PromiseFunction>(
             }
           : undefined,
     });
-  }, [createAsyncControllerOpts]);
+  }, [createAsyncControllerOpts, swr]);
 
   const createRunFn = useCallback(
     (throwError: boolean) => {
       return async (...args: Parameters<F>) => {
         await Promise.resolve();
+        
         if (createAsyncControllerOpts.debounceTime === -1) {
           setAsyncFunctionState((ov) => {
             if (ov.loading) {
               return ov;
             }
-            // sharedLoadingStateManager.increment(argsRef.current.loadingId);
             return {
               ...ov,
               loading: true,
             };
           });
         }
+        
         try {
           const res = await fnProxy(...args);
           setAsyncFunctionState((ov) => {
             if (!ov.loading && ov.error === null && ov.data === res) {
               return ov;
             }
-            // sharedLoadingStateManager.decrement(argsRef.current.loadingId);
             return {
               loading: false,
               error: null,
@@ -231,7 +277,6 @@ export const useAsyncFunction = <F extends PromiseFunction>(
             if (!ov.loading && ov.error === err && ov.data === null) {
               return ov;
             }
-            // sharedLoadingStateManager.decrement(argsRef.current.loadingId);
             return {
               error: err,
               loading: false,
@@ -285,6 +330,7 @@ export const useAsyncFunction = <F extends PromiseFunction>(
     data: asyncFunctionState.data,
     loading: composedPendingState,
     error: asyncFunctionState.error,
+    backgroundUpdating,
     run: manualRunFn,
     fn: manualRunFn,
     clearCache: fnProxy.clearCache,

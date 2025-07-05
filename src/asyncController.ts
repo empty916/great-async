@@ -89,6 +89,23 @@ export interface CreateAsyncControllerOptions<
 
   beforeRun?: () => any;
   promiseDebounce?: boolean;
+  /**
+   * Enable stale-while-revalidate pattern
+   * When true, if cache exists, return cached data immediately and update cache in background
+   * @default false
+   */
+  swr?: boolean;
+  /**
+   * Callback when background update starts
+   * @param data The cached data being returned
+   */
+  onBackgroundUpdateStart?: (data?: any) => void;
+  /**
+   * Callback when background update completes
+   * @param data The updated data
+   * @param error The error if update failed
+   */
+  onBackgroundUpdate?: (data?: any, error?: any) => void;
 }
 
 export interface ClearCache<F extends PromiseFunction> {
@@ -127,6 +144,9 @@ export function createAsyncController<F extends PromiseFunction>(
     genKeyByParams = defaultGenKeyByParams,
     cacheCapacity = -1,
     beforeRun,
+    swr = false,
+    onBackgroundUpdateStart,
+    onBackgroundUpdate,
   }: CreateAsyncControllerOptions<F> = {}
 ) {
   let timerMapOfDebounce = new Map<string | symbol, any>();
@@ -170,6 +190,39 @@ export function createAsyncController<F extends PromiseFunction>(
       clearExpiredCache();
     }
     const cache = getCache({ttl, fn: fnProxy, key, cacheCapacity});
+    
+    // Stale-while-revalidate pattern
+    if (swr && cache) {
+      // Return cached data immediately
+      const cachedPromise = Promise.resolve(cache.value) as ReturnType<F>;
+      
+      // Notify that background update is starting
+      onBackgroundUpdateStart?.(cache.value);
+      
+      // Start background update
+      const backgroundUpdate = async () => {
+        try {
+          const freshData = await finalFn(params, retryCount);
+          // Update cache with fresh data
+          const thisCache = cacheMap.get(fnProxy);
+          if (thisCache && (ttl !== -1 || cacheCapacity !== -1)) {
+            thisCache.set(key, {
+              data: freshData,
+              timestamp: Date.now(),
+            });
+          }
+          onBackgroundUpdate?.(freshData);
+        } catch (error) {
+          onBackgroundUpdate?.(undefined, error);
+        }
+      };
+      
+      // Start background update without blocking
+      backgroundUpdate();
+      
+      return cachedPromise;
+    }
+    
     if (cache) {
       return Promise.resolve(cache.value) as ReturnType<F>;
     }

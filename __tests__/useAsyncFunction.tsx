@@ -2,7 +2,7 @@
 import { sleep } from '../src/utils';
 import { useAsyncFunction } from '../src';
 import '@testing-library/jest-dom/extend-expect';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, act } from '@testing-library/react';
 import { useEffect, useState } from 'react';
 import React from 'react';
 import { sharedLoadingStateManager } from '../src/SharedLoadingStateManager';
@@ -100,13 +100,17 @@ test('loadingId', async () => {
     expect(screen.getByRole('app2')).toHaveTextContent('10');
 
 
-    useAsyncFunction.showLoading('app');
+    act(() => {
+        useAsyncFunction.showLoading('app');
+    });
     await waitFor(() => screen.getByRole('loading'));
 
     expect(sharedLoadingStateManager.isLoading('app')).toBe(true);
     expect(screen.getByRole('loading')).toHaveTextContent('loading');
     expect(screen.getByRole('loading2')).toHaveTextContent('loading2');
-    useAsyncFunction.hideLoading('app');
+    act(() => {
+        useAsyncFunction.hideLoading('app');
+    });
 
     await waitFor(() => screen.getByRole('app'));
 
@@ -546,7 +550,14 @@ test('deps error', async () => {
             </div>
         );
     };
+    
+    // Suppress console.error for this test since we expect an error
+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    
     expect(() => render(<App />)).toThrow();
+    
+    // Restore console.error
+    consoleSpy.mockRestore();
 });
 
 test('deps and triggle multiply', async () => {
