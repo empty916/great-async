@@ -107,20 +107,32 @@ console.log(result1 === result2 && result2 === result3); // true - all use resul
 
 #### ⏰ Debouncing
 
-Control when functions execute:
+Control when functions execute with two different scopes:
 
 ```typescript
 import { DIMENSIONS } from 'great-async/asyncController';
 
-const debouncedSearch = createAsyncController(searchAPI, {
+// PARAMETERS dimension: Debounce per unique parameters
+const parameterDebounce = createAsyncController(searchAPI, {
   debounceTime: 300,
-  debounceDimension: DIMENSIONS.PARAMETERS, // Debounce per unique parameters
+  debounceDimension: DIMENSIONS.PARAMETERS,
 });
 
-// Rapid calls - only the last one executes
-debouncedSearch('re');
-debouncedSearch('rea');
-debouncedSearch('react'); // Only this call will execute after 300ms
+// Each unique parameter gets its own debounce timer
+parameterDebounce('react');  // Timer 1: Will execute after 300ms
+parameterDebounce('vue');    // Timer 2: Will execute after 300ms (different parameter)
+parameterDebounce('react');  // Cancels Timer 1, starts new timer for 'react'
+
+// FUNCTION dimension: Debounce ignores parameters
+const functionDebounce = createAsyncController(searchAPI, {
+  debounceTime: 300,
+  debounceDimension: DIMENSIONS.FUNCTION,
+});
+
+// All calls share the same debounce timer regardless of parameters
+functionDebounce('react');   // Starts global timer
+functionDebounce('vue');     // Cancels previous timer, starts new one
+functionDebounce('angular'); // Only this call will execute after 300ms
 ```
 
 #### 🔁 Smart Retry Logic
@@ -176,7 +188,7 @@ class APIClient {
 
   private debouncedSearch = createAsyncController(this.httpGet, {
     debounceTime: 300,
-    debounceDimension: DIMENSIONS.PARAMETERS,
+    debounceDimension: DIMENSIONS.PARAMETERS, // Debounce per unique search query
     promiseDebounce: true,      // Latest search wins, discard previous identical searches
   });
 
@@ -386,7 +398,7 @@ function UserSettings({ userId }: { userId: string }) {
   );
 }
 ```
-```
+
 
 ## API Reference
 
@@ -403,10 +415,10 @@ function UserSettings({ userId }: { userId: string }) {
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `debounceTime` | `number` | `-1` | Debounce delay in milliseconds |
-| `debounceDimension` | `DIMENSIONS` | `FUNCTION` | Debounce scope |
+| `debounceDimension` | `DIMENSIONS` | `FUNCTION` | Debounce scope:<br/>• `FUNCTION`: Debounce ignores parameters<br/>• `PARAMETERS`: Debounce per unique parameters |
 | `promiseDebounce` | `boolean` | `false` | Latest request wins - discard previous identical requests |
 | `single` | `boolean` | `false` | Share result of first ongoing request with all pending requests |
-| `singleDimension` | `DIMENSIONS` | `FUNCTION` | Single mode scope |
+| `singleDimension` | `DIMENSIONS` | `FUNCTION` | Single mode scope:<br/>• `FUNCTION`: Single mode ignores parameters<br/>• `PARAMETERS`: Single mode per unique parameters |
 
 #### Reliability Options
 | Option | Type | Default | Description |
@@ -452,8 +464,6 @@ import { createAsyncController } from 'great-async/asyncController';
 import { useAsyncFunction } from 'great-async/useAsyncFunction';
 import { LRU } from 'great-async/LRU';
 ```
-
-See [EXPORTS_USAGE.md](./EXPORTS_USAGE.md) for complete details.
 
 ## Migration Guide
 
