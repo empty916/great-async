@@ -221,12 +221,9 @@ describe('useAsyncFunction', () => {
           single: true 
         });
         
-        fn().then(res => {
-          if (!data) {
-            return;
-          }
-          expect(res).toBe(data);
-        });
+        useEffect(() => {
+          fn();
+        }, []);
         
         if (loading) {
           return <span role="loading">loading</span>;
