@@ -293,24 +293,74 @@ function SearchResults({ query }: { query: string }) {
 
 #### 📱 Shared Loading States
 
-Share loading states across multiple components:
+Share loading states across multiple components using the same `loadingId`:
 
 ```tsx
 import { useAsyncFunction } from 'great-async/useAsyncFunction';
 import { useLoadingState } from 'great-async/SharedLoadingStateManager';
 
+// Multiple components can share the same loading state
 function UserProfile() {
-  const { data } = useAsyncFunction(fetchUser, {
+  const { data, loading } = useAsyncFunction(fetchUser, {
     loadingId: 'user-data', // Shared loading identifier
   });
   
+  if (loading) return <div>Profile loading...</div>;
   return <div>User: {data?.name}</div>;
 }
 
-function LoadingIndicator() {
-  const isLoading = useLoadingState('user-data'); // Reacts to same loading state
+function UserAvatar() {
+  const { data, loading } = useAsyncFunction(fetchUserAvatar, {
+    loadingId: 'user-data', // Same loadingId - shares loading state
+  });
   
-  return isLoading ? <div>Loading user...</div> : null;
+  if (loading) return <div>Avatar loading...</div>;
+  return <img src={data?.avatar} alt="User avatar" />;
+}
+
+function GlobalLoadingIndicator() {
+  const isLoading = useLoadingState('user-data'); // Reacts to shared loading state
+  
+  return (
+    <div className="global-loading">
+      {isLoading && <div>🔄 Loading user data...</div>}
+    </div>
+  );
+}
+
+// Usage: All components will show loading state when ANY of them is loading
+function App() {
+  return (
+    <div>
+      <GlobalLoadingIndicator />
+      <UserProfile />
+      <UserAvatar />
+    </div>
+  );
+}
+```
+
+You can also control shared loading states manually:
+
+```tsx
+import { useAsyncFunction } from 'great-async/useAsyncFunction';
+
+// Manual control of shared loading states
+function SomeComponent() {
+  const handleStartLoading = () => {
+    useAsyncFunction.showLoading('user-data'); // Show loading for loadingId
+  };
+  
+  const handleStopLoading = () => {
+    useAsyncFunction.hideLoading('user-data'); // Hide loading for loadingId
+  };
+  
+  return (
+    <div>
+      <button onClick={handleStartLoading}>Start Loading</button>
+      <button onClick={handleStopLoading}>Stop Loading</button>
+    </div>
+  );
 }
 ```
 
