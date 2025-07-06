@@ -1,9 +1,51 @@
 {
   "name": "great-async",
-  "version": "1.0.7-beta4",
+  "version": "1.0.7-beta9",
   "description": "make async great again",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
+    },
+    "./asyncController": {
+      "types": "./dist/asyncController.d.ts",
+      "import": "./dist/asyncController.js",
+      "require": "./dist/asyncController.js"
+    },
+    "./useAsyncFunction": {
+      "types": "./dist/useAsyncFunction.d.ts",
+      "import": "./dist/useAsyncFunction.js",
+      "require": "./dist/useAsyncFunction.js"
+    },
+    "./SharedLoadingStateManager": {
+      "types": "./dist/SharedLoadingStateManager.d.ts",
+      "import": "./dist/SharedLoadingStateManager.js",
+      "require": "./dist/SharedLoadingStateManager.js"
+    },
+    "./promiseDebounce": {
+      "types": "./dist/promiseDebounce.d.ts",
+      "import": "./dist/promiseDebounce.js",
+      "require": "./dist/promiseDebounce.js"
+    },
+    "./LRU": {
+      "types": "./dist/LRU.d.ts",
+      "import": "./dist/LRU.js",
+      "require": "./dist/LRU.js"
+    },
+    "./common": {
+      "types": "./dist/common.d.ts",
+      "import": "./dist/common.js",
+      "require": "./dist/common.js"
+    },
+    "./utils": {
+      "types": "./dist/utils.d.ts",
+      "import": "./dist/utils.js",
+      "require": "./dist/utils.js"
+    }
+  },
   "scripts": {
     "test": "jest",
     "build": "rimraf dist && tsc",

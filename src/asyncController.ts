@@ -1,16 +1,11 @@
-import type { AnyFn, PromiseFunction } from "./common";
-import { FalsyValue } from "./common";
+import type { AnyFn, CacheData, PickPromiseType, PromiseFunction, T_DIMENSIONS, AsyncError } from "./common";
+import { cacheMap, defaultGenKeyByParams, DIMENSIONS, FalsyValue, getCache } from "./common";
 import { LRU } from "./LRU";
+import { createPromiseDebounceFn } from "./promiseDebounce";
 
-export interface CacheData {
-  timestamp: number;
-  data: any;
-}
+export { DIMENSIONS, cacheMap, CacheData }; 
 
-export const cacheMap =
-  typeof WeakMap !== "undefined"
-    ? new WeakMap<AnyFn, Map<string, CacheData>>()
-    : new Map<AnyFn, Map<string, CacheData>>();
+
 
 type Timer = ReturnType<typeof setTimeout>;
 
@@ -48,21 +43,6 @@ function clearCache(fn: PromiseFunction, key?: string) {
   }
 }
 
-function defaultGenKeyByParams(params: any[]) {
-  try {
-    return JSON.stringify(params);
-  } catch (error) {
-    console.warn('great-async: serialize parameters failed!');
-    return '[]'
-  }
-}
-
-
-export enum DIMENSIONS {
-  FUNCTION = 0,
-  PARAMETERS
-}
-
 
 export interface CreateAsyncControllerOptions<
   F extends PromiseFunction = PromiseFunction
@@ -74,7 +54,7 @@ export interface CreateAsyncControllerOptions<
   /**
    * dimension of debounce, default is DIMENSIONS.FUNCTION
    */
-  debounceDimension?: DIMENSIONS.FUNCTION | DIMENSIONS.PARAMETERS;
+  debounceDimension?: T_DIMENSIONS;
   /**
    * time to live of cache, default is -1
    */
@@ -86,7 +66,7 @@ export interface CreateAsyncControllerOptions<
   /**
    * dimension of single, default is DIMENSIONS.FUNCTION
    */
-  singleDimension?: DIMENSIONS.FUNCTION | DIMENSIONS.PARAMETERS;
+  singleDimension?: T_DIMENSIONS;
   /**
    * a strategy to genrate key of cache
    */
@@ -100,7 +80,7 @@ export interface CreateAsyncControllerOptions<
    * @param error
    * @returns
    */
-  retryStrategy?: (error: any) => boolean;
+  retryStrategy?: (error: AsyncError) => boolean;
   /**
    * cache capacity, cache removal strategy using LRU algorithm
    * default value is -1, means no cache size limit
@@ -108,6 +88,24 @@ export interface CreateAsyncControllerOptions<
   cacheCapacity?: number;
 
   beforeRun?: () => any;
+  promiseDebounce?: boolean;
+  /**
+   * Enable stale-while-revalidate pattern
+   * When true, if cache exists, return cached data immediately and update cache in background
+   * @default false
+   */
+  swr?: boolean;
+  /**
+   * Callback when background update starts
+   * @param cachedData The cached data being returned immediately
+   */
+  onBackgroundUpdateStart?: (cachedData: PickPromiseType<F>) => void;
+  /**
+   * Callback when background update completes
+   * @param data The updated data (undefined if error occurred)
+   * @param error The error if update failed (undefined if successful)
+   */
+  onBackgroundUpdate?: (data: PickPromiseType<F> | undefined, error: AsyncError | undefined) => void;
 }
 
 export interface ClearCache<F extends PromiseFunction> {
@@ -123,6 +121,7 @@ export type ReturnTypeOfCreateAsyncController<F extends PromiseFunction> = {
 
 export const DEFAULT_TIMER_KEY = Symbol('DEFAULT_TIMER_KEY');
 export const DEFAULT_SINGLE_KEY = Symbol('DEFAULT_SINGLE_KEY');
+export const DEFAULT_PROMISE_DEBOUNCE_KEY = Symbol('DEFAULT_PROMISE_DEBOUNCE_KEY');
 
 /**
  * create async controller, http request is the main use case
@@ -135,6 +134,7 @@ export function createAsyncController<F extends PromiseFunction>(
   fn: F,
   {
     debounceTime = -1,
+    promiseDebounce = false,
     debounceDimension = DIMENSIONS.FUNCTION,
     ttl = -1,
     single = false,
@@ -143,7 +143,10 @@ export function createAsyncController<F extends PromiseFunction>(
     retryStrategy = (error) => !!error,
     genKeyByParams = defaultGenKeyByParams,
     cacheCapacity = -1,
-    beforeRun
+    beforeRun,
+    swr = false,
+    onBackgroundUpdateStart,
+    onBackgroundUpdate,
   }: CreateAsyncControllerOptions<F> = {}
 ) {
   let timerMapOfDebounce = new Map<string | symbol, any>();
@@ -170,23 +173,58 @@ export function createAsyncController<F extends PromiseFunction>(
     }
   }
 
+  let finalFn = retryFn;
+
+  if (promiseDebounce) {
+    if (debounceDimension === DIMENSIONS.FUNCTION) {
+      finalFn = createPromiseDebounceFn(retryFn as any, () => DEFAULT_PROMISE_DEBOUNCE_KEY);
+    } else if (debounceDimension === DIMENSIONS.PARAMETERS) {
+      finalFn = createPromiseDebounceFn(retryFn as any, genKeyByParams, true);
+    }
+  }
+
   function fnProxy(...params: Parameters<F>): ReturnType<F> {
     const key = genKeyByParams(params);
     if (ttl !== -1) {
       // Check and delete expired caches on each call to prevent out of memory error
       clearExpiredCache();
-      const thisCache = cacheMap.get(fnProxy);
-      const cacheObj = thisCache?.get(key);
-      if (cacheObj && Date.now() - cacheObj.timestamp < ttl) {
-        return Promise.resolve(cacheObj.data) as ReturnType<F>;
-      }
     }
-    if (cacheCapacity !== -1) {
-      const thisCache = cacheMap.get(fnProxy);
-      const cacheObj = thisCache?.get(key);
-      if (cacheObj) {
-        return Promise.resolve(cacheObj.data) as ReturnType<F>;
-      }
+    const cache = getCache({ttl, fn: fnProxy, key, cacheCapacity});
+    
+    // Stale-while-revalidate pattern
+    if (swr && cache) {
+      // Return cached data immediately
+      const cachedPromise = Promise.resolve(cache.value) as ReturnType<F>;
+      
+      // Notify that background update is starting
+      onBackgroundUpdateStart?.(cache.value);
+      
+      // Start background update
+      const backgroundUpdate = async () => {
+        try {
+          const freshData = await finalFn(params, retryCount);
+          // Update cache with fresh data
+          const thisCache = cacheMap.get(fnProxy);
+          if (thisCache && (ttl !== -1 || cacheCapacity !== -1)) {
+            thisCache.set(key, {
+              data: freshData,
+              timestamp: Date.now(),
+            });
+          }
+          onBackgroundUpdate?.(freshData, undefined);
+        } catch (error) {
+          onBackgroundUpdate?.(undefined, error);
+        }
+      };
+      
+      // Start background update without blocking
+      backgroundUpdate();
+      
+      return cachedPromise;
+    }
+    
+    if (cache) {
+      return Promise.resolve(cache.value) as ReturnType<F>;
     }
     if (single && debounceTime === -1) {
       if (singleDimension === DIMENSIONS.FUNCTION && promiseHandlerMap.get(DEFAULT_SINGLE_KEY)) {
@@ -216,10 +254,12 @@ export function createAsyncController<F extends PromiseFunction>(
       .then((arg: any) => {
         if (arg === undefined) {
           beforeRun?.();
-          return retryFn(params, retryCount)
+          const runFnPromise = finalFn(params, retryCount);
+          return runFnPromise
             .then((res) => {
               // eslint-disable-next-line @typescript-eslint/no-shadow
               const thisCache = cacheMap.get(fnProxy);
+              const composeRes = res || new FalsyValue(res);
               if (
                 thisCache &&
                 (ttl !== -1 || cacheCapacity !== -1) &&
@@ -231,7 +271,7 @@ export function createAsyncController<F extends PromiseFunction>(
                 });
               }
               listener.forEach((i) => {
-                i.resolve(res || new FalsyValue(res));
+                i.resolve(composeRes);
               });
               return res;
             })
