@@ -47,18 +47,6 @@ export interface UseAsyncFunctionOptions<F extends PromiseFunction>
    * When using usAsyncFunction in different components and giving them the same loadingId, they will share the "loading" state.
    */
   loadingId?: string;
-  /**
-   * Enable stale-while-revalidate pattern
-   * When true, if cache exists, return cached data immediately and update cache in background
-   * @default false
-   */
-  swr?: boolean;
-  /**
-   * Callback when background update completes
-   * @param data The updated data
-   * @param error The error if update failed
-   */
-  onBackgroundUpdate?: (data?: PickPromiseType<F>, error?: any) => void;
 }
 
 export type UseAsyncFunctionReturn<F extends PromiseFunction> =

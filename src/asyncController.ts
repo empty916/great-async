@@ -1,4 +1,4 @@
-import type { AnyFn, CacheData, PromiseFunction, T_DIMENSIONS } from "./common";
+import type { AnyFn, CacheData, PickPromiseType, PromiseFunction, T_DIMENSIONS } from "./common";
 import { cacheMap, defaultGenKeyByParams, DIMENSIONS, FalsyValue, getCache } from "./common";
 import { LRU } from "./LRU";
 import { createPromiseDebounceFn } from "./promiseDebounce";
@@ -99,13 +99,13 @@ export interface CreateAsyncControllerOptions<
    * Callback when background update starts
    * @param data The cached data being returned
    */
-  onBackgroundUpdateStart?: (data?: any) => void;
+  onBackgroundUpdateStart?: (data?: PickPromiseType<F>) => void;
   /**
    * Callback when background update completes
    * @param data The updated data
    * @param error The error if update failed
    */
-  onBackgroundUpdate?: (data?: any, error?: any) => void;
+  onBackgroundUpdate?: (data?: PickPromiseType<F>, error?: any) => void;
 }
 
 export interface ClearCache<F extends PromiseFunction> {
