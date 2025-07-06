@@ -825,10 +825,13 @@ const fetchUser = createAsyncController(getUserData, {
 });
 
 // React usage with manual control
-const { data, loading, error, fn: fetchUserProxy } = useAsyncFunction(fetchUser, {
-  deps: [userId],
-  auto: 'deps-only'
-});
+const { data, loading, error, fn: fetchUserProxy } = useAsyncFunction(
+  () => fetchUser(userId),
+  {
+    deps: [userId],
+    auto: 'deps-only'
+  }
+);
 
 // Manual execution - same function signature!
 const handleRefresh = () => fetchUserProxy(); // ✅ Simple and intuitive
@@ -883,10 +886,14 @@ const fetchUser = createAsyncController(fetchUserProfile, {
   swr: true,
 });
 
-const { data, loading } = useAsyncFunction(fetchUser, {
-  loadingId: 'user-data', // Shared across components
-  auto: 'deps-only', // Only auto-call on deps change
-});
+const { data, loading } = useAsyncFunction(
+  () => fetchUser(userId),
+  {
+    deps: [userId],
+    loadingId: 'user-data', // Shared across components
+    auto: 'deps-only', // Only auto-call on deps change
+  }
+);
 
 // TanStack Query - Requires additional setup
 const { data, isLoading } = useQuery({
