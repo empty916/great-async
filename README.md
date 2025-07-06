@@ -1015,21 +1015,6 @@ const searchAPI = createAsyncController(performSearch, {
   retryCount: 3,
 });
 
-// Shared loading states
-const fetchUser = createAsyncController(fetchUserProfile, {
-  ttl: 5 * 60 * 1000,
-  swr: true,
-});
-
-const { data, loading } = useAsyncFunction(
-  () => fetchUser(userId),
-  {
-    deps: [userId],
-    loadingId: 'user-data', // Shared across components
-    auto: 'deps-only', // Only auto-call on deps change
-  }
-);
-
 // TanStack Query - Requires additional setup
 const { data, isLoading } = useQuery({
   queryKey: ['search', query],
@@ -1065,7 +1050,7 @@ const handleRefresh = () => mutate(); // ❌ Complex revalidation logic
 
 // After (great-async)
 const { data, error, loading, fn: fetchUserDataProxy } = useAsyncFunction(
-  () => fetchUserData(userId),
+  (id: string = userId) => fetchUserData(id),
   {
     deps: [userId],
     ttl: 30000,
