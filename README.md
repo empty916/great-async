@@ -52,6 +52,12 @@ const userData = await enhancedFetch('123');
 #### 🔄 Smart Caching
 
 ```typescript
+// Define the API function
+const fetchData = async (param: string) => {
+  const response = await fetch(`/api/data/${param}`);
+  return response.json();
+};
+
 const cachedAPI = createAsyncController(fetchData, {
   ttl: 5 * 60 * 1000,     // Cache for 5 minutes
   cacheCapacity: 100,      // LRU cache with max 100 items
@@ -69,6 +75,12 @@ const data2 = await cachedAPI('param1'); // ⚡ Instant!
 Perfect for improving perceived performance:
 
 ```typescript
+// Define the API function
+const fetchUserProfile = async (userId: string) => {
+  const response = await fetch(`/api/users/${userId}/profile`);
+  return response.json();
+};
+
 const swrAPI = createAsyncController(fetchUserProfile, {
   swr: true,
   ttl: 60000,
@@ -91,6 +103,12 @@ const profile = await swrAPI('user123'); // ⚡ Returns cached data immediately
 When multiple identical requests are made, only the latest one's result is used and all pending requests share its result:
 
 ```typescript
+// Define the API function
+const performSearch = async (query: string) => {
+  const response = await fetch(`/api/search?q=${query}`);
+  return response.json();
+};
+
 const searchAPI = createAsyncController(performSearch, {
   promiseDebounce: true,
 });
@@ -111,6 +129,12 @@ Control when functions execute with two different scopes:
 
 ```typescript
 import { DIMENSIONS } from 'great-async/asyncController';
+
+// Define the API function
+const searchAPI = async (query: string) => {
+  const response = await fetch(`/api/search?q=${query}`);
+  return response.json();
+};
 
 // PARAMETERS dimension: Debounce per unique parameters
 const parameterDebounce = createAsyncController(searchAPI, {
@@ -140,6 +164,17 @@ functionDebounce('angular'); // Only this call will execute after 300ms
 Handle failures gracefully:
 
 ```typescript
+// Define the API function
+const fetchData = async (param: string) => {
+  const response = await fetch(`/api/data/${param}`);
+  if (!response.ok) {
+    const error = new Error(`HTTP ${response.status}`);
+    (error as any).status = response.status;
+    throw error;
+  }
+  return response.json();
+};
+
 const resilientAPI = createAsyncController(fetchData, {
   retryCount: 3,
   retryStrategy: (error) => {
@@ -157,6 +192,14 @@ const data = await resilientAPI('important-data');
 Prevent concurrent executions - all pending requests share the result of the first ongoing request:
 
 ```typescript
+// Define the API function
+const heavyOperation = async (param: string) => {
+  // Simulate a heavy operation
+  await new Promise(resolve => setTimeout(resolve, 2000));
+  const response = await fetch(`/api/heavy/${param}`);
+  return response.json();
+};
+
 const singletonAPI = createAsyncController(heavyOperation, {
   single: true,
 });
@@ -268,10 +311,55 @@ function UserProfile({ userId }: { userId: string }) {
   if (error) return <div>Error: {error.message}</div>;
   return <div>Hello, {data.name}!</div>;
 }
+```
 
-// Advanced: Control when requests are triggered
+#### Manual Execution with `fn`
+
+The `fn` returned by `useAsyncFunction` allows you to manually trigger the async function at any time:
+
+```tsx
+function UserDashboard({ userId }: { userId: string }) {
+  // Define the API function
+  const getUserData = async (userId: string) => {
+    const response = await fetch(`/api/users/${userId}`);
+    return response.json();
+  };
+
+  const { data, loading, error, fn: getUserDataProxy } = useAsyncFunction(
+    () => getUserData(userId),
+    { 
+      auto: false, // Don't auto-execute on mount
+      deps: [userId] 
+    }
+  );
+
+  return (
+    <div>
+      <button onClick={() => getUserDataProxy()} disabled={loading}>
+        {loading ? 'Loading...' : 'Load User Data'}
+      </button>
+      
+      {error && <div>Error: {error.message}</div>}
+      {data && (
+        <div>
+          <h2>{data.name}</h2>
+          <p>Email: {data.email}</p>
+          <button onClick={() => getUserDataProxy()}>Refresh</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Advanced: Conditional execution based on user interaction
 function SearchResults({ query }: { query: string }) {
-  const { data, loading, fn: search } = useAsyncFunction(
+  // Define the API function
+  const searchAPI = async (query: string) => {
+    const response = await fetch(`/api/search?q=${query}`);
+    return response.json();
+  };
+
+  const { data, loading, fn: searchAPIProxy } = useAsyncFunction(
     () => searchAPI(query),
     { 
       auto: 'deps-only', // Only search when query changes, not on mount
@@ -279,12 +367,66 @@ function SearchResults({ query }: { query: string }) {
     }
   );
 
+  const handleManualSearch = () => {
+    // Force a fresh search regardless of cache
+    searchAPIProxy();
+  };
+
   return (
     <div>
-      <button onClick={() => search()}>Search Now</button>
-      {loading && <div>Searching...</div>}
+      <button onClick={handleManualSearch} disabled={loading}>
+        {loading ? 'Searching...' : 'Search Now'}
+      </button>
       {data?.map(item => <div key={item.id}>{item.title}</div>)}
     </div>
+  );
+}
+
+// Form submission example
+function CreateUser() {
+  const [formData, setFormData] = useState({ name: '', email: '' });
+  
+  // Define the API function
+  const createUserAPI = async (userData: { name: string; email: string }) => {
+    const response = await fetch('/api/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(userData),
+    });
+    return response.json();
+  };
+  
+  const { data: newUser, loading, error, fn: createUserAPIProxy } = useAsyncFunction(
+    () => createUserAPI(formData),
+    { auto: false } // Only execute when form is submitted
+  );
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    createUserAPIProxy(); // Manual execution
+  };
+
+  if (newUser) {
+    return <div>User created successfully: {newUser.name}</div>;
+  }
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <input 
+        value={formData.name}
+        onChange={(e) => setFormData(prev => ({...prev, name: e.target.value}))}
+        placeholder="Name"
+      />
+      <input 
+        value={formData.email}
+        onChange={(e) => setFormData(prev => ({...prev, email: e.target.value}))}
+        placeholder="Email"
+      />
+      <button type="submit" disabled={loading}>
+        {loading ? 'Creating...' : 'Create User'}
+      </button>
+      {error && <div>Error: {error.message}</div>}
+    </form>
   );
 }
 ```
@@ -298,6 +440,17 @@ Share loading states across multiple components using the same `loadingId`:
 ```tsx
 import { useAsyncFunction } from 'great-async/useAsyncFunction';
 import { useLoadingState } from 'great-async/SharedLoadingStateManager';
+
+// Define the API functions
+const fetchUser = async () => {
+  const response = await fetch('/api/user');
+  return response.json();
+};
+
+const fetchUserAvatar = async () => {
+  const response = await fetch('/api/user/avatar');
+  return response.json();
+};
 
 // Multiple components can share the same loading state
 function UserProfile() {
@@ -368,6 +521,12 @@ function SomeComponent() {
 
 ```tsx
 function Dashboard() {
+  // Define the API function
+  const fetchCurrentUser = async () => {
+    const response = await fetch('/api/user/current');
+    return response.json();
+  };
+
   const { data: user, backgroundUpdating } = useAsyncFunction(
     fetchCurrentUser,
     {
@@ -393,6 +552,12 @@ function Dashboard() {
 ```tsx
 function SearchBox() {
   const [query, setQuery] = useState('');
+  
+  // Define the API function
+  const searchAPI = async (query: string) => {
+    const response = await fetch(`/api/search?q=${query}`);
+    return response.json();
+  };
   
   const { data: results, loading } = useAsyncFunction(
     () => searchAPI(query),
@@ -426,8 +591,15 @@ Control when automatic requests are triggered:
 function UserSettings({ userId }: { userId: string }) {
   const [filters, setFilters] = useState({ category: '', status: '' });
   
+  // Define the API function
+  const fetchUserSettings = async (userId: string, filters: { category: string; status: string }) => {
+    const params = new URLSearchParams({ ...filters, userId });
+    const response = await fetch(`/api/user/settings?${params}`);
+    return response.json();
+  };
+  
   // Only auto-fetch when filters change, not on initial mount
-  const { data: settings, loading, fn: refetch } = useAsyncFunction(
+  const { data: settings, loading, fn: fetchUserSettingsProxy } = useAsyncFunction(
     () => fetchUserSettings(userId, filters),
     {
       auto: 'deps-only',  // Don't auto-call on mount, only when deps change
@@ -437,7 +609,7 @@ function UserSettings({ userId }: { userId: string }) {
 
   return (
     <div>
-      <button onClick={() => refetch()}>Load Settings</button>
+      <button onClick={() => fetchUserSettingsProxy()}>Load Settings</button>
       <FilterControls 
         filters={filters} 
         onChange={setFilters} // Will trigger auto-fetch when changed
@@ -514,6 +686,312 @@ import { createAsyncController } from 'great-async/asyncController';
 import { useAsyncFunction } from 'great-async/useAsyncFunction';
 import { LRU } from 'great-async/LRU';
 ```
+
+## Comparison with Similar Libraries
+
+### 📊 Feature Comparison
+
+| Feature | great-async | TanStack Query | SWR | RTK Query | Apollo Client |
+|---------|-------------|----------------|-----|-----------|---------------|
+| **Framework Support** | ✅ Agnostic | ⚛️ React | ⚛️ React | ⚛️ React | ⚛️ React |
+| **Bundle Size** | 🟢 ~8KB | 🟡 ~47KB | 🟢 ~2KB | 🟡 ~13KB | 🔴 ~47KB |
+| **Learning Curve** | 🟢 Low | 🟡 Medium | 🟢 Low | 🟡 Medium | 🔴 High |
+| **Caching Strategy** | ✅ TTL + LRU | ✅ Time-based | ✅ SWR | ✅ Normalized | ✅ Normalized |
+| **SWR Pattern** | ✅ Built-in | ✅ Built-in | ✅ Native | ✅ Built-in | ✅ Built-in |
+| **Debouncing** | ✅ Advanced | ❌ External | ❌ External | ❌ External | ❌ External |
+| **Single Mode** | ✅ Built-in | ❌ Manual | ❌ Manual | ❌ Manual | ❌ Manual |
+| **Promise Debounce** | ✅ Built-in | ❌ No | ❌ No | ❌ No | ❌ No |
+| **Retry Logic** | ✅ Configurable | ✅ Advanced | ✅ Basic | ✅ Basic | ✅ Advanced |
+| **Offline Support** | ✅ Cache-based | ✅ Advanced | ✅ Basic | ✅ Basic | ✅ Advanced |
+| **DevTools** | ❌ No | ✅ Excellent | ❌ No | ✅ Redux | ✅ Excellent |
+| **Mutations** | ✅ Via Controller | ✅ Built-in | ✅ Via mutate | ✅ Built-in | ✅ Built-in |
+| **Shared Loading** | ✅ Unique | ❌ No | ❌ No | ❌ No | ❌ No |
+| **Auto Modes** | ✅ 3 modes | ✅ Manual | ✅ Manual | ✅ Manual | ✅ Manual |
+| **AOP Support** | ✅ Native | ❌ No | ❌ No | ❌ No | ❌ No |
+| **Manual Execution** | ✅ Simple `fn()` | 🟡 `refetch()` | 🟡 `mutate()` | 🟡 Via endpoints | 🟡 `refetch()` |
+
+### 🎯 When to Choose What
+
+#### Choose **great-async** when:
+- ✅ You need a **framework-agnostic** solution
+- ✅ You want **aspect-oriented programming** (AOP) - enhance functions transparently
+- ✅ You need **gradual migration** without breaking existing code
+- ✅ You want **intuitive manual execution** with `fn()` that preserves function signature
+- ✅ You want **advanced debouncing** with parameter/function dimensions
+- ✅ You need **shared loading states** across components
+- ✅ You prefer **small bundle size** with comprehensive features
+- ✅ You want **built-in single mode** to prevent duplicate requests
+- ✅ You need **flexible auto-execution** modes (`true`, `false`, `'deps-only'`)
+- ✅ You're building **Node.js APIs** or **vanilla JS** applications
+
+#### Choose **TanStack Query** when:
+- ✅ You need **powerful DevTools** for debugging
+- ✅ You want **advanced mutation** features with optimistic updates
+- ✅ You need **infinite queries** and complex pagination
+- ✅ You're building **large-scale React applications**
+- ✅ You want **extensive plugin ecosystem**
+
+#### Choose **SWR** when:
+- ✅ You prefer **minimal setup** and simplicity
+- ✅ You're using **Next.js** (made by same team)
+- ✅ You want **lightweight** solution for basic data fetching
+- ✅ You need **fast initial page loads**
+
+#### Choose **RTK Query** when:
+- ✅ You're already using **Redux Toolkit**
+- ✅ You need **centralized state management**
+- ✅ You want **normalized caching** with entity relationships
+- ✅ You prefer **Redux ecosystem** and patterns
+
+#### Choose **Apollo Client** when:
+- ✅ You're using **GraphQL** exclusively
+- ✅ You need **advanced GraphQL features** (subscriptions, fragments)
+- ✅ You want **powerful caching** with normalized data
+- ✅ You're building **complex GraphQL applications**
+
+### 💡 Code Comparison
+
+#### Aspect-Oriented Programming (AOP) - Function Enhancement
+
+```typescript
+// great-async - Native AOP Support
+// Original function
+async function fetchUserData(userId: string) {
+  const response = await fetch(`/api/users/${userId}`);
+  return response.json();
+}
+
+// Enhanced function with caching, debouncing, retry - SAME SIGNATURE!
+const enhancedFetchUser = createAsyncController(fetchUserData, {
+  ttl: 5 * 60 * 1000,
+  debounceTime: 300,
+  retryCount: 3,
+  swr: true,
+});
+
+// Use exactly like the original function
+const userData = await enhancedFetchUser('123'); // ✅ Same API!
+const moreData = await enhancedFetchUser('456'); // ✅ With all enhancements!
+
+// Perfect for gradual migration - just replace the function!
+// Before: const users = await Promise.all([fetchUserData('1'), fetchUserData('2')])
+// After:  const users = await Promise.all([enhancedFetchUser('1'), enhancedFetchUser('2')])
+
+// Works in any context - classes, modules, callbacks
+class UserService {
+  fetchUser = enhancedFetchUser; // ✅ Drop-in replacement
+  
+  async getTeam(userIds: string[]) {
+    return Promise.all(userIds.map(this.fetchUser)); // ✅ Same usage
+  }
+}
+
+// Other libraries - Require different usage patterns
+// TanStack Query - Must use hooks, different API
+const { data } = useQuery({
+  queryKey: ['user', userId],
+  queryFn: () => fetchUserData(userId), // ❌ Wrapped in hook
+});
+
+// SWR - Must use hooks, different API  
+const { data } = useSWR(
+  ['user', userId], 
+  () => fetchUserData(userId) // ❌ Wrapped in hook
+);
+
+// RTK Query - Must define endpoints, different API
+const api = createApi({
+  endpoints: (builder) => ({
+    getUser: builder.query({ // ❌ Completely different API
+      query: (userId) => `/users/${userId}`,
+    }),
+  }),
+});
+```
+
+#### Simple Data Fetching
+
+```typescript
+// Define the API function
+const getUserData = async (userId: string) => {
+  const response = await fetch(`/api/users/${userId}`);
+  return response.json();
+};
+
+// great-async - Framework Agnostic
+const fetchUser = createAsyncController(getUserData, {
+  ttl: 5 * 60 * 1000,
+  swr: true,
+});
+
+// React usage with manual control
+const { data, loading, error, fn: fetchUserProxy } = useAsyncFunction(fetchUser, {
+  deps: [userId],
+  auto: 'deps-only'
+});
+
+// Manual execution - same function signature!
+const handleRefresh = () => fetchUserProxy(); // ✅ Simple and intuitive
+
+// TanStack Query - React Only
+const { data, isLoading, error, refetch } = useQuery({
+  queryKey: ['user', userId],
+  queryFn: () => getUserData(userId),
+  staleTime: 5 * 60 * 1000,
+});
+
+// Manual execution - different API
+const handleRefresh = () => refetch(); // ❌ Different function, loses parameters
+
+// SWR - React Only
+const { data, isLoading, error, mutate } = useSWR(
+  ['user', userId],
+  () => getUserData(userId)
+);
+
+// Manual execution - complex API
+const handleRefresh = () => mutate(); // ❌ Revalidation only, not re-execution
+```
+
+#### Advanced Features
+
+```typescript
+// Define the API functions
+const performSearch = async (query: string) => {
+  const response = await fetch(`/api/search?q=${query}`);
+  return response.json();
+};
+
+const fetchUserProfile = async (userId: string) => {
+  const response = await fetch(`/api/users/${userId}/profile`);
+  return response.json();
+};
+
+// great-async - Unique Features
+const searchAPI = createAsyncController(performSearch, {
+  debounceTime: 300,
+  debounceDimension: DIMENSIONS.PARAMETERS, // Per-parameter debouncing
+  promiseDebounce: true, // Latest request wins
+  single: true, // Prevent duplicate requests
+  swr: true,
+  retryCount: 3,
+});
+
+// Shared loading states
+const fetchUser = createAsyncController(fetchUserProfile, {
+  ttl: 5 * 60 * 1000,
+  swr: true,
+});
+
+const { data, loading } = useAsyncFunction(fetchUser, {
+  loadingId: 'user-data', // Shared across components
+  auto: 'deps-only', // Only auto-call on deps change
+});
+
+// TanStack Query - Requires additional setup
+const { data, isLoading } = useQuery({
+  queryKey: ['search', query],
+  queryFn: () => performSearch(query),
+  enabled: !!query,
+  retry: 3,
+});
+
+// Manual debouncing needed
+const debouncedQuery = useDebounce(query, 300);
+```
+
+### 🚀 Migration Examples
+
+#### From SWR to great-async
+
+```typescript
+// Define the API function
+const fetchUserData = async (userId: string) => {
+  const response = await fetch(`/api/users/${userId}`);
+  return response.json();
+};
+
+// Before (SWR)
+const { data, error, isLoading, mutate } = useSWR(
+  `/api/users/${userId}`,
+  fetcher,
+  { refreshInterval: 30000 }
+);
+
+// Manual refresh requires revalidation
+const handleRefresh = () => mutate(); // ❌ Complex revalidation logic
+
+// After (great-async)
+const { data, error, loading, fn: fetchUserDataProxy } = useAsyncFunction(
+  () => fetchUserData(userId),
+  {
+    deps: [userId],
+    ttl: 30000,
+    swr: true,
+  }
+);
+
+// Manual refresh is simple and intuitive
+const handleRefresh = () => fetchUserDataProxy(); // ✅ Direct function call
+```
+
+#### From TanStack Query to great-async
+
+```typescript
+// Define the API function
+const fetchPosts = async (params: { page: number }) => {
+  const response = await fetch(`/api/posts?page=${params.page}`);
+  return response.json();
+};
+
+// Before (TanStack Query)
+const { data, isLoading, error, refetch } = useQuery({
+  queryKey: ['posts', { page }],
+  queryFn: ({ queryKey }) => fetchPosts(queryKey[1]),
+  staleTime: 5 * 60 * 1000,
+});
+
+// Manual refetch loses original parameters
+const handleRefresh = () => refetch(); // ❌ No control over parameters
+
+// After (great-async)
+const { data, loading, error, fn: fetchPostsProxy } = useAsyncFunction(
+  (params: { page: number } = { page }) => fetchPosts(params),
+  {
+    deps: [page],
+    ttl: 5 * 60 * 1000,
+    swr: true,
+  }
+);
+
+// Manual execution with full control
+const handleRefresh = () => fetchPostsProxy(); // ✅ Same function, same parameters
+const handleRefreshWithNewPage = () => fetchPostsProxy({ page: page + 1 }); // ✅ Can modify parameters
+```
+
+### 📈 Performance Comparison
+
+| Library | Bundle Size | Runtime Performance | Memory Usage |
+|---------|-------------|-------------------|--------------|
+| **great-async** | 🟢 ~8KB | 🟢 Excellent | 🟢 Low |
+| **TanStack Query** | 🟡 ~47KB | 🟢 Excellent | 🟡 Medium |
+| **SWR** | 🟢 ~2KB | 🟢 Excellent | 🟢 Low |
+| **RTK Query** | 🟡 ~13KB | 🟢 Good | 🟡 Medium |
+| **Apollo Client** | 🔴 ~47KB | 🟡 Good | 🔴 High |
+
+### 🏆 Summary
+
+**great-async** stands out by offering:
+
+1. **Framework Agnostic**: Works everywhere (React, Vue, Node.js, vanilla JS)
+2. **Aspect-Oriented Programming**: Enhance functions transparently without changing their API
+3. **Intuitive Manual Execution**: `fn()` preserves original function signature and behavior
+4. **Unique Features**: Advanced debouncing, shared loading states, single mode
+5. **Small Bundle**: Comprehensive features in a compact package
+6. **Simple API**: Easy to learn and use
+7. **Flexible**: Multiple auto-execution modes and caching strategies
+
+While other libraries excel in specific areas (TanStack Query's DevTools, SWR's simplicity, RTK Query's Redux integration), **great-async** provides the best balance of features, performance, and flexibility for most use cases.
 
 ## Migration Guide
 
