@@ -583,6 +583,124 @@ function SearchBox() {
 }
 ```
 
+#### 🗑️ Cache Management with `clearCache`
+
+The `clearCache` function allows you to manually control cached data:
+
+```tsx
+function UserProfile({ userId }: { userId: string }) {
+  // Define the API function
+  const fetchUserData = async (userId: string) => {
+    const response = await fetch(`/api/users/${userId}`);
+    return response.json();
+  };
+  
+  const { data, loading, clearCache } = useAsyncFunction(
+    (id: string = userId) => fetchUserData(id), // Function with parameters and default value
+    {
+      deps: [userId],
+      ttl: 5 * 60 * 1000,
+    }
+  );
+
+  const handleClearAllCache = () => {
+    clearCache(); // Clear all cached data
+  };
+
+  const handleClearSpecificCache = () => {
+    clearCache(userId); // Clear cache for specific userId
+  };
+
+  return (
+    <div>
+      {data && <div>User: {data.name}</div>}
+      <button onClick={handleClearAllCache}>Clear All Cache</button>
+      <button onClick={handleClearSpecificCache}>Clear This User's Cache</button>
+    </div>
+  );
+}
+```
+
+**Framework-agnostic usage:**
+
+```typescript
+// Define the API function
+const fetchUserData = async (userId: string) => {
+  const response = await fetch(`/api/users/${userId}`);
+  return response.json();
+};
+
+const userAPI = createAsyncController(fetchUserData, {
+  ttl: 5 * 60 * 1000,
+});
+
+// Use the API
+const userData = await userAPI('123'); // Cached for 5 minutes
+
+// Clear cache for one specific parameter combination
+userAPI.clearCache('123'); // Clear cache only for userId '123'
+
+// Clear all cache
+userAPI.clearCache(); // Clear all cached data
+
+// Force fresh data for specific parameter
+userAPI.clearCache('123');
+const freshData = await userAPI('123'); // Will fetch fresh data
+
+// Note: To clear multiple specific caches, call clearCache multiple times
+userAPI.clearCache('123'); // Clear cache for user '123'
+userAPI.clearCache('456'); // Clear cache for user '456'
+userAPI.clearCache('789'); // Clear cache for user '789'
+```
+
+**Important Notes:**
+
+- **Single parameter combination**: `clearCache(...params)` only clears cache for one specific parameter combination
+- **Batch clearing**: To clear multiple specific caches, call `clearCache` multiple times
+- **Parameter matching**: Parameters must match exactly (same values, same order) as when the cache was created
+
+**Cache management patterns:**
+
+```typescript
+// 1. Clear cache on data mutations
+const updateUser = async (userId: string, data: any) => {
+  await fetch(`/api/users/${userId}`, { method: 'PUT', body: JSON.stringify(data) });
+  userAPI.clearCache(userId); // Clear cache for this specific user
+};
+
+// 2. Clear cache on logout
+const logout = () => {
+  userAPI.clearCache(); // Clear all user data cache
+  profileAPI.clearCache(); // Clear profile cache
+  // ... clear other caches
+};
+
+// 3. Clear multiple specific caches
+const clearMultipleUsers = (userIds: string[]) => {
+  userIds.forEach(userId => {
+    userAPI.clearCache(userId); // Clear each user's cache individually
+  });
+};
+
+// 4. Clear cache for complex parameters
+const searchAPI = createAsyncController(
+  async (query: string, filters: { category: string; status: string }) => {
+    // ... search logic
+  }
+);
+
+// Clear cache for specific search
+searchAPI.clearCache('react', { category: 'tech', status: 'active' });
+
+// Clear all search cache
+searchAPI.clearCache();
+
+// 5. Periodic cache cleanup
+setInterval(() => {
+  userAPI.clearCache(); // Clear all cache every hour
+}, 60 * 60 * 1000);
+```
+
 #### 🎯 Conditional Auto-Execution
 
 Control when automatic requests are triggered:
@@ -625,6 +743,24 @@ function UserSettings({ userId }: { userId: string }) {
 ## API Reference
 
 ### createAsyncController(asyncFn, options)
+
+**Returns:** Enhanced function with additional methods:
+- **Enhanced function**: Same signature as original function, but with caching, debouncing, etc.
+- **`clearCache()`**: Clear all cached data for this function
+- **`clearCache(...params)`**: Clear cache for one specific parameter combination
+
+```typescript
+const enhancedFn = createAsyncController(originalFn, options);
+
+// Use like original function
+const result = await enhancedFn(param1, param2);
+
+// Clear all cache
+enhancedFn.clearCache();
+
+// Clear cache for one specific parameter combination
+enhancedFn.clearCache(param1, param2);
+```
 
 #### Caching Options
 | Option | Type | Default | Description |
@@ -674,7 +810,7 @@ Extends `createAsyncController` options with React-specific features:
 | `error` | `any` | Error object if request fails |
 | `backgroundUpdating` | `boolean` | True during SWR background updates |
 | `fn` | `Function` | Manually trigger the async function |
-| `clearCache` | `Function` | Clear cached data |
+| `clearCache` | `Function` | Clear cached data:<br/>• `clearCache()` - Clear all cached data<br/>• `clearCache(...params)` - Clear cache for one specific parameter combination |
 
 ## Subpath Imports
 
@@ -875,7 +1011,6 @@ const searchAPI = createAsyncController(performSearch, {
   debounceTime: 300,
   debounceDimension: DIMENSIONS.PARAMETERS, // Per-parameter debouncing
   promiseDebounce: true, // Latest request wins
-  single: true, // Prevent duplicate requests
   swr: true,
   retryCount: 3,
 });
@@ -1039,6 +1174,36 @@ While other libraries excel in specific areas (TanStack Query's DevTools, SWR's 
 - Don't use SWR for real-time data that must be always fresh
 - Don't forget to handle errors in production
 - Don't set `cacheCapacity` too high in memory-constrained environments
+- **Don't combine `single: true` with `debounceTime`** - these features conflict with each other
+
+### ⚠️ Feature Conflicts
+
+#### Single Mode vs Debouncing
+
+**Avoid using `single: true` together with `debounceTime`** as they have conflicting behaviors:
+
+- **Debounce**: Delays execution until user stops making calls
+- **Single**: Prevents duplicate executions by sharing ongoing requests
+
+```typescript
+// ❌ BAD: Conflicting configuration
+const conflictedAPI = createAsyncController(searchFn, {
+  debounceTime: 300,  // Delays execution
+  single: true,       // Shares ongoing requests - CONFLICTS!
+});
+
+// ✅ GOOD: Use debounce for user input
+const searchAPI = createAsyncController(searchFn, {
+  debounceTime: 300,
+  promiseDebounce: true, // Latest request wins
+});
+
+// ✅ GOOD: Use single for expensive operations
+const heavyAPI = createAsyncController(heavyFn, {
+  single: true,
+  ttl: 60000, // Cache results
+});
+```
 
 ## License
 
