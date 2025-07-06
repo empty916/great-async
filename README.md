@@ -707,14 +707,14 @@ import { LRU } from 'great-async/LRU';
 | **Mutations** | ✅ Via Controller | ✅ Built-in | ✅ Via mutate | ✅ Built-in | ✅ Built-in |
 | **Shared Loading** | ✅ Unique | ❌ No | ❌ No | ❌ No | ❌ No |
 | **Auto Modes** | ✅ 3 modes | ✅ Manual | ✅ Manual | ✅ Manual | ✅ Manual |
-| **AOP Support** | ✅ Native | ❌ No | ❌ No | ❌ No | ❌ No |
+| **Function Enhancement** | ✅ Transparent | ❌ No | ❌ No | ❌ No | ❌ No |
 | **Manual Execution** | ✅ Simple `fn()` | 🟡 `refetch()` | 🟡 `mutate()` | 🟡 Via endpoints | 🟡 `refetch()` |
 
 ### 🎯 When to Choose What
 
 #### Choose **great-async** when:
 - ✅ You need a **framework-agnostic** solution
-- ✅ You want **aspect-oriented programming** (AOP) - enhance functions transparently
+- ✅ You want **transparent function enhancement** - enhance functions without changing their API
 - ✅ You need **gradual migration** without breaking existing code
 - ✅ You want **intuitive manual execution** with `fn()` that preserves function signature
 - ✅ You want **advanced debouncing** with parameter/function dimensions
@@ -751,10 +751,10 @@ import { LRU } from 'great-async/LRU';
 
 ### 💡 Code Comparison
 
-#### Aspect-Oriented Programming (AOP) - Function Enhancement
+#### Function Enhancement Pattern - Transparent Proxy Design
 
 ```typescript
-// great-async - Native AOP Support
+// great-async - Transparent Function Enhancement
 // Original function
 async function fetchUserData(userId: string) {
   const response = await fetch(`/api/users/${userId}`);
@@ -984,7 +984,7 @@ const handleRefreshWithNewPage = () => fetchPostsProxy({ page: page + 1 }); // �
 **great-async** stands out by offering:
 
 1. **Framework Agnostic**: Works everywhere (React, Vue, Node.js, vanilla JS)
-2. **Aspect-Oriented Programming**: Enhance functions transparently without changing their API
+2. **Transparent Function Enhancement**: Enhance functions without changing their API
 3. **Intuitive Manual Execution**: `fn()` preserves original function signature and behavior
 4. **Unique Features**: Advanced debouncing, shared loading states, single mode
 5. **Small Bundle**: Comprehensive features in a compact package
