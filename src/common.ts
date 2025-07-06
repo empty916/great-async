@@ -1,6 +1,13 @@
 import type { DependencyList } from "react";
 
 export type PromiseFunction = (...args: any) => Promise<any>;
+
+/**
+ * Error type that can be thrown by async functions
+ * Covers most common error scenarios while maintaining flexibility
+ */
+export type AsyncError = Error | string | any;
+
 export type PickPromiseType<P extends (...arg: any) => Promise<any>> =
   P extends (...arg: any) => Promise<infer V> ? V : never;
 

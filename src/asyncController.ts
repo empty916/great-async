@@ -1,4 +1,4 @@
-import type { AnyFn, CacheData, PickPromiseType, PromiseFunction, T_DIMENSIONS } from "./common";
+import type { AnyFn, CacheData, PickPromiseType, PromiseFunction, T_DIMENSIONS, AsyncError } from "./common";
 import { cacheMap, defaultGenKeyByParams, DIMENSIONS, FalsyValue, getCache } from "./common";
 import { LRU } from "./LRU";
 import { createPromiseDebounceFn } from "./promiseDebounce";
@@ -80,7 +80,7 @@ export interface CreateAsyncControllerOptions<
    * @param error
    * @returns
    */
-  retryStrategy?: (error: any) => boolean;
+  retryStrategy?: (error: AsyncError) => boolean;
   /**
    * cache capacity, cache removal strategy using LRU algorithm
    * default value is -1, means no cache size limit
@@ -97,15 +97,15 @@ export interface CreateAsyncControllerOptions<
   swr?: boolean;
   /**
    * Callback when background update starts
-   * @param data The cached data being returned
+   * @param cachedData The cached data being returned immediately
    */
-  onBackgroundUpdateStart?: (data?: PickPromiseType<F>) => void;
+  onBackgroundUpdateStart?: (cachedData: PickPromiseType<F>) => void;
   /**
    * Callback when background update completes
-   * @param data The updated data
-   * @param error The error if update failed
+   * @param data The updated data (undefined if error occurred)
+   * @param error The error if update failed (undefined if successful)
    */
-  onBackgroundUpdate?: (data?: PickPromiseType<F>, error?: any) => void;
+  onBackgroundUpdate?: (data: PickPromiseType<F> | undefined, error: AsyncError | undefined) => void;
 }
 
 export interface ClearCache<F extends PromiseFunction> {
@@ -211,7 +211,7 @@ export function createAsyncController<F extends PromiseFunction>(
               timestamp: Date.now(),
             });
           }
-          onBackgroundUpdate?.(freshData);
+          onBackgroundUpdate?.(freshData, undefined);
         } catch (error) {
           onBackgroundUpdate?.(undefined, error);
         }

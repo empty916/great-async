@@ -11,13 +11,13 @@ import {
   useState,
   useMemo,
 } from "react";
-import type { PickPromiseType, PromiseFunction } from "./common";
+import type { PickPromiseType, PromiseFunction, AsyncError } from "./common";
 import { shallowEqual } from "./common";
 import { sharedLoadingStateManager, useLoadingState } from "./SharedLoadingStateManager";
 
 export interface AsyncFunctionState<T> {
   loading: boolean;
-  error: any;
+  error: AsyncError | null;
   data: T;
 }
 
@@ -64,7 +64,7 @@ export type UseAsyncFunctionReturn<F extends PromiseFunction> =
       /**
        * promise's error value
        */
-      error: any;
+      error: AsyncError | null;
       /**
        * Whether background update is in progress (for stale-while-revalidate)
        */
@@ -89,7 +89,7 @@ export type UseAsyncFunctionReturn<F extends PromiseFunction> =
        * promise's loading status
        */
       loading: false;
-      error: any;
+      error: AsyncError | null;
       /**
        * Whether background update is in progress (for stale-while-revalidate)
        */
@@ -196,11 +196,11 @@ export const useAsyncFunction = <F extends PromiseFunction>(
     return createAsyncController(fn1 as F, {
       ...createAsyncControllerOpts,
       swr,
-      onBackgroundUpdateStart: swr ? (cachedData?: PickPromiseType<F>) => {
+      onBackgroundUpdateStart: swr ? (cachedData: PickPromiseType<F>) => {
         // Background update is starting, set backgroundUpdating state
         setBackgroundUpdating(true);
       } : undefined,
-      onBackgroundUpdate: swr ? (data?: PickPromiseType<F>, error?: any) => {
+      onBackgroundUpdate: swr ? (data: PickPromiseType<F> | undefined, error: AsyncError | undefined) => {
         // Background update completed, update data and clear background updating state
         if (data !== undefined) {
           setAsyncFunctionState(prev => ({
