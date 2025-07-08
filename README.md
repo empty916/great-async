@@ -814,14 +814,23 @@ Extends `createAsyncController` options with React-specific features:
 
 ## Subpath Imports
 
-Starting from version 1.0.7-beta5, you can import individual modules:
+Starting from version 1.0.7-beta10, you can import individual modules. Multiple import paths are supported for better compatibility:
 
 ```typescript
 // Import only what you need
 import { createAsyncController } from 'great-async/asyncController';
 import { useAsyncFunction } from 'great-async/useAsyncFunction';
 import { LRU } from 'great-async/LRU';
+
+// Alternative: direct dist imports for better bundler compatibility
+import { createAsyncController } from 'great-async/dist/asyncController';
+import { useAsyncFunction } from 'great-async/dist/useAsyncFunction';
+import { LRU } from 'great-async/dist/LRU';
 ```
+
+### TypeScript Support
+
+Starting from version 1.0.7-beta10, TypeScript module resolution is fully supported for all import methods. Both runtime and TypeScript compilation will work correctly in all modern bundlers including UMI, Webpack, Vite, etc.
 
 ## Comparison with Similar Libraries
 
