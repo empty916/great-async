@@ -1,20 +1,12 @@
 import { sleep } from '../src/utils';
-import { useAsyncFunction } from '../src';
+import { useAsync } from '../src';
 import '@testing-library/jest-dom/extend-expect';
 import { fireEvent, render, screen, waitFor, act } from '@testing-library/react';
 import { useEffect, useState } from 'react';
-import React from 'react';
 import { sharedLoadingStateManager } from '../src/shared-loading-state-manager';
-import { 
-  createTrackedAsyncFunction, 
-  createErrorAsyncFunction, 
-  expectUserDataInDOM, 
-  waitForAppState,
-  waitForLoadingState,
-  DEFAULT_USER_DATA
-} from './test-helpers';
 
-describe('useAsyncFunction', () => {
+
+describe('useAsync', () => {
   describe('Basic functionality', () => {
     test('should load data successfully on mount', async () => {
     const getUserInfo = async () => {
@@ -27,7 +19,7 @@ describe('useAsyncFunction', () => {
     };
 
     const App = () => {
-        const { loading, data } = useAsyncFunction(getUserInfo);
+        const { loading, data } = useAsync(getUserInfo);
         if (loading) {
             return <span role="loading">loading</span>;
         }
@@ -59,7 +51,7 @@ test('should share loading state with same loadingId', async () => {
     };
 
     const App = () => {
-        const { loading, data } = useAsyncFunction(getUserInfo, {
+        const { loading, data } = useAsync(getUserInfo, {
             loadingId: 'app',
         });
         if (loading) {
@@ -74,7 +66,7 @@ test('should share loading state with same loadingId', async () => {
         );
     };
     const App2 = () => {
-        const { loading, data } = useAsyncFunction(getUserInfo, {
+        const { loading, data } = useAsync(getUserInfo, {
             loadingId: 'app',
         });
         if (loading) {
@@ -110,7 +102,7 @@ test('should share loading state with same loadingId', async () => {
 
 
     act(() => {
-        useAsyncFunction.showLoading('app');
+        useAsync.showLoading('app');
     });
     await waitFor(() => screen.getByRole('loading'));
 
@@ -118,7 +110,7 @@ test('should share loading state with same loadingId', async () => {
     expect(screen.getByRole('loading')).toHaveTextContent('loading');
     expect(screen.getByRole('loading2')).toHaveTextContent('loading2');
     act(() => {
-        useAsyncFunction.hideLoading('app');
+        useAsync.hideLoading('app');
     });
 
     await waitFor(() => screen.getByRole('app'));
@@ -148,7 +140,7 @@ test('should cache data with TTL configuration', async () => {
     };
 
     const App = () => {
-        const { loading, data, fn } = useAsyncFunction(getUserInfo, {ttl: 30});
+        const { loading, data, fn } = useAsync(getUserInfo, {ttl: 30});
         useEffect(() => {
             if (!data) {
                 return;
@@ -191,7 +183,7 @@ test('should combine TTL with single mode', async () => {
     };
 
     const App = () => {
-        const { loading, data, fn } = useAsyncFunction(getUserInfo, {ttl: 30, single: true});
+        const { loading, data, fn } = useAsync(getUserInfo, {ttl: 30, single: true});
         fn().then(res => {
             if (!data) {
                 return;
@@ -227,7 +219,7 @@ test('should handle async function errors', async () => {
     };
 
     const App = () => {
-        const { loading, error } = useAsyncFunction(getUserInfo);
+        const { loading, error } = useAsync(getUserInfo);
         if (loading) {
             return <span role="loading">loading</span>;
         }
@@ -258,7 +250,7 @@ test('should not auto-execute when auto is false', async () => {
     };
 
     const App = () => {
-        const { loading, data, fn } = useAsyncFunction(getUserInfo, {
+        const { loading, data, fn } = useAsync(getUserInfo, {
             auto: false,
         });
 
@@ -291,7 +283,7 @@ test('should handle errors with auto false and debounce', async () => {
     };
 
     const App = () => {
-        const { loading, error, fn } = useAsyncFunction(getUserInfo, {
+        const { loading, error, fn } = useAsync(getUserInfo, {
             auto: false,
             debounceTime: 10
         });
@@ -334,7 +326,7 @@ test('should prevent duplicate calls in single mode', async () => {
     };
 
     const App = () => {
-        const { loading, data, fn } = useAsyncFunction(getUserInfo, {
+        const { loading, data, fn } = useAsync(getUserInfo, {
             auto: false,
             single: true
         });
@@ -374,7 +366,7 @@ test('should debounce multiple rapid calls', async () => {
     };
 
     const App = () => {
-        const { loading, data, fn } = useAsyncFunction(getUserInfo, {
+        const { loading, data, fn } = useAsync(getUserInfo, {
             auto: false,
             debounceTime: 100,
         });
@@ -416,7 +408,7 @@ test('should debounce with auto false mode', async () => {
     };
 
     const App = () => {
-        const { loading, data, fn } = useAsyncFunction(getUserInfo, {
+        const { loading, data, fn } = useAsync(getUserInfo, {
             auto: false,
             debounceTime: 100,
         });
@@ -461,7 +453,7 @@ test('should re-run when dependencies change', async () => {
 
     const App = () => {
         const [flag, setFlag] = useState(1);
-        const { loading, data } = useAsyncFunction(getUserInfo, {
+        const { loading, data } = useAsync(getUserInfo, {
             deps: [flag]
         });
 
@@ -503,7 +495,7 @@ test('should respect auto flag with dependencies', async () => {
 
     const App = () => {
         const [flag, setFlag] = useState(1);
-        const { loading, data } = useAsyncFunction(getUserInfo, {
+        const { loading, data } = useAsync(getUserInfo, {
             deps: [flag],
             auto: flag !== 2,
         });
@@ -542,7 +534,7 @@ test('should throw error when deps is not an array', async () => {
 
     const App = () => {
         const [flag, setFlag] = useState(1);
-        const { loading, data } = useAsyncFunction(getUserInfo, {
+        const { loading, data } = useAsync(getUserInfo, {
             // @ts-ignore
             deps: flag
         });
@@ -583,7 +575,7 @@ test('deps and trigger multiple calls', async () => {
 
     const App = () => {
         const [flag, setFlag] = useState(1);
-        const { loading, data } = useAsyncFunction(getUserInfo, {
+        const { loading, data } = useAsync(getUserInfo, {
             deps: [flag],
         });
 
@@ -624,7 +616,7 @@ test('should combine dependencies with single mode', async () => {
 
     const App = () => {
         const [flag, setFlag] = useState(1);
-        const { loading, data } = useAsyncFunction(getUserInfo, {
+        const { loading, data } = useAsync(getUserInfo, {
             deps: [flag],
             single: true,
         });
@@ -666,7 +658,7 @@ test('should combine dependencies with debounce', async () => {
 
     const App = () => {
         const [flag, setFlag] = useState(1);
-        const { loading, data } = useAsyncFunction(getUserInfo, {
+        const { loading, data } = useAsync(getUserInfo, {
             deps: [flag],
             debounceTime: 30,
         });
@@ -700,7 +692,7 @@ it('should support auto="deps-only" mode - no auto-call on mount but auto-call o
   
   const App = () => {
     const [currentUserId, setCurrentUserId] = useState(userId);
-    const { data, loading, fn } = useAsyncFunction(
+    const { data, loading, fn } = useAsync(
       () => mockFn(currentUserId),
       { 
         auto: 'deps-only',
@@ -752,4 +744,4 @@ it('should support auto="deps-only" mode - no auto-call on mount but auto-call o
 });
 
   }); // end describe('Basic functionality')
-}); // end describe('useAsyncFunction')
+}); // end describe('useAsync')

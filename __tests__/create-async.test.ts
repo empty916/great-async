@@ -1,10 +1,10 @@
-import { DIMENSIONS, cacheMap, createAsyncController } from '../src/asyncController';
+import { DIMENSIONS, cacheMap, createAsync } from '../src';
 import { sleep } from '../src/utils';
 
 
 test('normal', async () => {
 	let times = 0;
-	const getUserData = createAsyncController(async () => {
+	const getUserData = createAsync(async () => {
 		times++;
 		await sleep(100);
 		return {
@@ -28,7 +28,7 @@ test('normal', async () => {
 
 test('single', async () => {
 	let times = 0;
-	const getUserData = createAsyncController(async () => {
+	const getUserData = createAsync(async () => {
 		times++;
 		await sleep(100);
 		return {
@@ -55,7 +55,7 @@ test('single', async () => {
 
 test('single with parameter dimension 1', async () => {
 	let times = 0;
-	const getUserData = createAsyncController(async (i: number) => {
+	const getUserData = createAsync(async (i: number) => {
 		times++;
 		await sleep(100);
 		return {
@@ -84,7 +84,7 @@ test('single with parameter dimension 1', async () => {
 
 test('single with parameter dimension 2', async () => {
 	let times = 0;
-	const getUserData = createAsyncController(async (i: number) => {
+	const getUserData = createAsync(async (i: number) => {
 		times++;
 		await sleep(100);
 		return {
@@ -111,7 +111,7 @@ test('single with parameter dimension 2', async () => {
 
 test('debounce time', async () => {
 	let times = 0;
-	const getUserData = createAsyncController(async () => {
+	const getUserData = createAsync(async () => {
 		times++;
 		await sleep(100);
 		return {
@@ -140,7 +140,7 @@ test('debounce time', async () => {
 
 test('promise and time debounce ', async () => {
 	let times = 0;
-	const getUserData = createAsyncController(async (type: '1'|'2' = '1') => {
+	const getUserData = createAsync(async (type: '1'|'2' = '1') => {
 		times++;
 		await sleep(200);
 		if (type === '1') {
@@ -183,7 +183,7 @@ test('promise and time debounce ', async () => {
 
 test('debounce time with parameter dimension 1', async () => {
 	let times = 0;
-	const getUserData = createAsyncController(async (i: number) => {
+	const getUserData = createAsync(async (i: number) => {
 		times++;
 		await sleep(100);
 		return {
@@ -211,7 +211,7 @@ test('debounce time with parameter dimension 1', async () => {
 
 test('debounce time with parameter dimension 2', async () => {
 	let times = 0;
-	const getUserData = createAsyncController(async (i: number) => {
+	const getUserData = createAsync(async (i: number) => {
 		times++;
 		await sleep(100);
 		return {
@@ -238,7 +238,7 @@ test('debounce time with parameter dimension 2', async () => {
 
 test('ttl', async () => {
 	let times = 0;
-	const getUserData = createAsyncController(async (name?: string) => {
+	const getUserData = createAsync(async (name?: string) => {
 		times++;
 		await sleep(100);
 		return {
@@ -264,7 +264,7 @@ test('ttl', async () => {
 
 test('cacheCapacity', async () => {
 	let times = 0;
-	const getUserData = createAsyncController(async (name?: string) => {
+	const getUserData = createAsync(async (name?: string) => {
 		times++;
 		await sleep(100);
 		return {
@@ -290,7 +290,7 @@ test('cacheCapacity', async () => {
 
 test('cacheCapacity work', async () => {
 	let times = 0;
-	const getUserData = createAsyncController(async (name?: string) => {
+	const getUserData = createAsync(async (name?: string) => {
 		times++;
 		await sleep(100);
 		return {
@@ -316,7 +316,7 @@ test('cacheCapacity work', async () => {
 
 test('ttl and debounce', async () => {
 	let times = 0;
-	const getUserData = createAsyncController(async (name?: string) => {
+	const getUserData = createAsync(async (name?: string) => {
 		times++;
 		await sleep(100);
 		return {
@@ -359,7 +359,7 @@ test('ttl and debounce', async () => {
 
 test('genKeyByParams', async () => {
 	let times = 0;
-	const getUserData = createAsyncController(async (name?: string) => {
+	const getUserData = createAsync(async (name?: string) => {
 		times++;
 		await sleep(100);
 		return {
@@ -390,7 +390,7 @@ test('genKeyByParams', async () => {
 
 test('clear cache', async () => {
 	let times = 0;
-	const getUserData = createAsyncController(async (name?: string) => {
+	const getUserData = createAsync(async (name?: string) => {
 		times++;
 		await sleep(100);
 		return {
@@ -428,7 +428,7 @@ test('clear cache', async () => {
 
 test('clear all cache', async () => {
 	let times = 0;
-	const getUserData = createAsyncController(async (name?: string) => {
+	const getUserData = createAsync(async (name?: string) => {
 		times++;
 		await sleep(100);
 		return {
@@ -459,7 +459,7 @@ test('clear all cache', async () => {
 
 
 test('clear expired cache', async () => {
-	const getUserData = createAsyncController(async (name?: string) => {
+	const getUserData = createAsync(async (name?: string) => {
 		await sleep(10);
 		return {
 			name: name || 'tom',
@@ -486,7 +486,7 @@ test('clear expired cache', async () => {
 
 
 test('error', async () => {
-	const getUserData = createAsyncController(async () => {
+	const getUserData = createAsync(async () => {
 		await sleep(100);
 		throw new Error('error message');
 	});
@@ -496,7 +496,7 @@ test('error', async () => {
 
 test('retry error', async () => {
 	let times = 0;
-	const getUserData = createAsyncController(async () => {
+	const getUserData = createAsync(async () => {
 		times++;
 		await sleep(100);
 		throw new Error('error message');
@@ -509,7 +509,7 @@ test('retry error', async () => {
 
 test('retry error', async () => {
 	let times = 0;
-	const getUserData = createAsyncController(async () => {
+	const getUserData = createAsync(async () => {
 		times++;
 		await sleep(100);
 		throw new Error('error message');
@@ -525,7 +525,7 @@ test('retry error', async () => {
 test('retry error with custom retry strategy', async () => {
 	let times = 0;
 	let times1 = 0;
-	const getUserData = createAsyncController(async () => {
+	const getUserData = createAsync(async () => {
 		times++;
 		await sleep(100);
 		throw new Error('error message');
@@ -538,7 +538,7 @@ test('retry error with custom retry strategy', async () => {
 	await expect(getUserData()).rejects.toThrow('error message');
 	expect(times).toBe(2);
 
-	const getUserData2 = createAsyncController(async () => {
+	const getUserData2 = createAsync(async () => {
 		times1++;
 		await sleep(100);
 		throw new Error('error message');
@@ -555,7 +555,7 @@ test('retry error with custom retry strategy', async () => {
 
 test('retry call fn when occur error and return success finally', async () => {
 	let times = 0;
-	const getUserData = createAsyncController(async () => {
+	const getUserData = createAsync(async () => {
 		times++;
 		await sleep(100);
 		if (times < 3) {
@@ -579,12 +579,12 @@ test('retry call fn when occur error and return success finally', async () => {
 
 
 test('recreate', async () => {
-	const getUserData = createAsyncController(async () => {
+	const getUserData = createAsync(async () => {
 		await sleep(100);
 		return {
 			name: 'tom',
 			age: 10
 		}
 	});
-	expect(createAsyncController(getUserData)).not.toBe(getUserData);
+	expect(createAsync(getUserData)).not.toBe(getUserData);
 });

@@ -1,4 +1,4 @@
-import { createAsync } from '../src/create-async';
+import { createAsync } from '../src';
 
 describe('retryStrategy with currentRetryCount parameter', () => {
   it('should pass currentRetryCount as second parameter to retryStrategy', async () => {

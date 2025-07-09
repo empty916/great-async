@@ -1,4 +1,4 @@
-import { SharedLoadingStateManager } from '../src/shared-loading-state-manager';
+import { SharedLoadingStateManager } from '../src';
 
 describe('SharedLoadingStateManager', () => {
   let manager: SharedLoadingStateManager;

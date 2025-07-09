@@ -1,5 +1,5 @@
 import { sleep } from '../src/utils';
-import { useAsyncFunction } from '../src';
+import { useAsync } from '../src';
 import '@testing-library/jest-dom/extend-expect';
 import { fireEvent, render, screen, waitFor, act } from '@testing-library/react';
 import { useEffect, useState } from 'react';
@@ -18,7 +18,7 @@ test('staleWhileRevalidate - basic functionality', async () => {
     };
 
     const App = () => {
-        const { loading, data, backgroundUpdating, fn } = useAsyncFunction(getUserInfo, {
+        const { loading, data, backgroundUpdating, fn } = useAsync(getUserInfo, {
             ttl: 1000, // 1 second cache
             swr: true,
         });
@@ -74,7 +74,7 @@ test('staleWhileRevalidate - disabled behavior', async () => {
     };
 
     const App = () => {
-        const { loading, data, backgroundUpdating, fn } = useAsyncFunction(getUserInfo, {
+        const { loading, data, backgroundUpdating, fn } = useAsync(getUserInfo, {
             auto: false,
             ttl: 1000,
             swr: false, // Disabled
