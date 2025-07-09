@@ -21,18 +21,18 @@
 npm install great-async
 ```
 
-## Core API - createAsync / createAsyncController
+## Core API - createAsync
 
-The heart of `great-async` is `createAsync` (or `createAsyncController`) - a framework-agnostic function that enhances any async function with powerful features.
+The heart of `great-async` is `createAsync` - a framework-agnostic function that enhances any async function with powerful features.
 
 ### Basic Usage
 
 ```typescript
-// Recommended: Use the concise API
+// Recommended: Use the modern API
 import { createAsync } from 'great-async';
-import { createAsync } from 'great-async/createAsync';
+import { createAsync } from 'great-async/create-async';
 
-// Alternative: Use the full name
+// Legacy: Use the full name (deprecated)
 import { createAsyncController } from 'great-async';
 import { createAsyncController } from 'great-async/asyncController';
 
@@ -85,7 +85,7 @@ const fetchUserProfile = async (userId: string) => {
   return response.json();
 };
 
-const swrAPI = createAsyncController(fetchUserProfile, {
+const swrAPI = createAsync(fetchUserProfile, {
   swr: true,
   ttl: 60000,
   onBackgroundUpdate: (freshData, error) => {
@@ -113,7 +113,7 @@ const performSearch = async (query: string) => {
   return response.json();
 };
 
-const searchAPI = createAsyncController(performSearch, {
+const searchAPI = createAsync(performSearch, {
   promiseDebounce: true,
 });
 
@@ -141,7 +141,7 @@ const searchAPI = async (query: string) => {
 };
 
 // PARAMETERS dimension: Debounce per unique parameters
-const parameterDebounce = createAsyncController(searchAPI, {
+const parameterDebounce = createAsync(searchAPI, {
   debounceTime: 300,
   debounceDimension: DIMENSIONS.PARAMETERS,
 });
@@ -152,7 +152,7 @@ parameterDebounce('vue');    // Timer 2: Will execute after 300ms (different par
 parameterDebounce('react');  // Cancels Timer 1, starts new timer for 'react'
 
 // FUNCTION dimension: Debounce ignores parameters
-const functionDebounce = createAsyncController(searchAPI, {
+const functionDebounce = createAsync(searchAPI, {
   debounceTime: 300,
   debounceDimension: DIMENSIONS.FUNCTION,
 });
@@ -179,8 +179,7 @@ const fetchData = async (param: string) => {
   return response.json();
 };
 
-const resilientAPI = createAsyncController(fetchData, {
-  retryCount: 3,
+const resilientAPI = createAsync(fetchData, {
   retryStrategy: (error, currentRetryCount) => {
     // Retry on server errors, but limit retries for specific errors
     if (error.status >= 500) {
@@ -213,7 +212,7 @@ const heavyOperation = async (param: string) => {
   return response.json();
 };
 
-const singletonAPI = createAsyncController(heavyOperation, {
+const singletonAPI = createAsync(heavyOperation, {
   single: true,
 });
 
@@ -232,17 +231,18 @@ console.log(result1 === result2 && result2 === result3); // true
 #### 🌐 Node.js API Client
 
 ```typescript
-import { createAsyncController, DIMENSIONS } from 'great-async/asyncController';
+import { createAsync, DIMENSIONS } from 'great-async/create-async';
 
 class APIClient {
-  private cachedGet = createAsyncController(this.httpGet, {
+  private cachedGet = createAsync(this.httpGet, {
     ttl: 5 * 60 * 1000,        // 5 minute cache
     cacheCapacity: 200,         // LRU cache
-    retryCount: 3,              // Retry failed requests
-    retryStrategy: (error) => error.status >= 500,
+    retryStrategy: (error, currentRetryCount) => {
+      return error.status >= 500 && currentRetryCount <= 3;
+    },
   });
 
-  private debouncedSearch = createAsyncController(this.httpGet, {
+  private debouncedSearch = createAsync(this.httpGet, {
     debounceTime: 300,
     debounceDimension: DIMENSIONS.PARAMETERS, // Debounce per unique search query
     promiseDebounce: true,      // Latest search wins, discard previous identical searches
@@ -268,7 +268,7 @@ class APIClient {
 
 ```typescript
 const createSearchController = (endpoint: string) => {
-  return createAsyncController(
+  return createAsync(
     async (query: string) => {
       const response = await fetch(`${endpoint}?q=${encodeURIComponent(query)}`);
       return response.json();
@@ -303,18 +303,18 @@ const products = await searchProducts('laptop');    // Fresh search
 const moreProducts = await searchProducts('laptop'); // ⚡ Cached + background update
 ```
 
-## React Integration - useAsync / useAsyncFunction
+## React Integration - useAsync
 
-For React applications, `great-async` provides `useAsync` (or `useAsyncFunction`) hook that builds on top of `createAsync`:
+For React applications, `great-async` provides `useAsync` hook that builds on top of `createAsync`:
 
 ### Basic React Usage
 
 ```tsx
-// Recommended: Use the concise API
+// Recommended: Use the modern API
 import { useAsync } from 'great-async';
-import { useAsync } from 'great-async/useAsync';
+import { useAsync } from 'great-async/use-async';
 
-// Alternative: Use the full name
+// Legacy: Use the full name (deprecated)
 import { useAsyncFunction } from 'great-async';
 import { useAsyncFunction } from 'great-async/useAsyncFunction';
 
@@ -332,7 +332,7 @@ function UserProfile({ userId }: { userId: string }) {
 
 #### Manual Execution with `fn`
 
-The `fn` returned by `useAsyncFunction` allows you to manually trigger the async function at any time:
+The `fn` returned by `useAsync` allows you to manually trigger the async function at any time:
 
 ```tsx
 function UserDashboard({ userId }: { userId: string }) {
@@ -342,11 +342,11 @@ function UserDashboard({ userId }: { userId: string }) {
     return response.json();
   };
 
-  const { data, loading, error, fn: getUserDataProxy } = useAsyncFunction(
+  const { data, loading, error, fn: getUserDataProxy } = useAsync(
     () => getUserData(userId),
-    { 
+    {
       auto: false, // Don't auto-execute on mount
-      deps: [userId] 
+      deps: [userId]
     }
   );
 
@@ -376,9 +376,9 @@ function SearchResults({ query }: { query: string }) {
     return response.json();
   };
 
-  const { data, loading, fn: searchAPIProxy } = useAsyncFunction(
+  const { data, loading, fn: searchAPIProxy } = useAsync(
     () => searchAPI(query),
-    { 
+    {
       auto: 'deps-only', // Only search when query changes, not on mount
       deps: [query],
     }
@@ -413,7 +413,7 @@ function CreateUser() {
     return response.json();
   };
   
-  const { data: newUser, loading, error, fn: createUserAPIProxy } = useAsyncFunction(
+  const { data: newUser, loading, error, fn: createUserAPIProxy } = useAsync(
     () => createUserAPI(formData),
     { auto: false } // Only execute when form is submitted
   );
@@ -455,8 +455,8 @@ function CreateUser() {
 Share loading states across multiple components using the same `loadingId`:
 
 ```tsx
-import { useAsyncFunction } from 'great-async/useAsyncFunction';
-import { useLoadingState } from 'great-async/SharedLoadingStateManager';
+import { useAsync } from 'great-async/use-async';
+import { useLoadingState } from 'great-async/shared-loading-state-manager';
 
 // Define the API functions
 const fetchUser = async () => {
@@ -471,7 +471,7 @@ const fetchUserAvatar = async () => {
 
 // Multiple components can share the same loading state
 function UserProfile() {
-  const { data, loading } = useAsyncFunction(fetchUser, {
+  const { data, loading } = useAsync(fetchUser, {
     loadingId: 'user-data', // Shared loading identifier
   });
   
@@ -480,7 +480,7 @@ function UserProfile() {
 }
 
 function UserAvatar() {
-  const { data, loading } = useAsyncFunction(fetchUserAvatar, {
+  const { data, loading } = useAsync(fetchUserAvatar, {
     loadingId: 'user-data', // Same loadingId - shares loading state
   });
   
@@ -513,16 +513,16 @@ function App() {
 You can also control shared loading states manually:
 
 ```tsx
-import { useAsyncFunction } from 'great-async/useAsyncFunction';
+import { useAsync } from 'great-async/use-async';
 
 // Manual control of shared loading states
 function SomeComponent() {
   const handleStartLoading = () => {
-    useAsyncFunction.showLoading('user-data'); // Show loading for loadingId
+    useAsync.showLoading('user-data'); // Show loading for loadingId
   };
-  
+
   const handleStopLoading = () => {
-    useAsyncFunction.hideLoading('user-data'); // Hide loading for loadingId
+    useAsync.hideLoading('user-data'); // Hide loading for loadingId
   };
   
   return (
@@ -544,7 +544,7 @@ function Dashboard() {
     return response.json();
   };
 
-  const { data: user, backgroundUpdating } = useAsyncFunction(
+  const { data: user, backgroundUpdating } = useAsync(
     fetchCurrentUser,
     {
       swr: true,
@@ -576,7 +576,7 @@ function SearchBox() {
     return response.json();
   };
   
-  const { data: results, loading } = useAsyncFunction(
+  const { data: results, loading } = useAsync(
     () => searchAPI(query),
     {
       deps: [query],
@@ -612,7 +612,7 @@ function UserProfile({ userId }: { userId: string }) {
     return response.json();
   };
   
-  const { data, loading, clearCache } = useAsyncFunction(
+  const { data, loading, clearCache } = useAsync(
     (id: string = userId) => fetchUserData(id), // Function with parameters and default value
     {
       deps: [userId],
@@ -647,7 +647,7 @@ const fetchUserData = async (userId: string) => {
   return response.json();
 };
 
-const userAPI = createAsyncController(fetchUserData, {
+const userAPI = createAsync(fetchUserData, {
   ttl: 5 * 60 * 1000,
 });
 
@@ -700,7 +700,7 @@ const clearMultipleUsers = (userIds: string[]) => {
 };
 
 // 4. Clear cache for complex parameters
-const searchAPI = createAsyncController(
+const searchAPI = createAsync(
   async (query: string, filters: { category: string; status: string }) => {
     // ... search logic
   }
@@ -734,7 +734,7 @@ function UserSettings({ userId }: { userId: string }) {
   };
   
   // Only auto-fetch when filters change, not on initial mount
-  const { data: settings, loading, fn: fetchUserSettingsProxy } = useAsyncFunction(
+  const { data: settings, loading, fn: fetchUserSettingsProxy } = useAsync(
     () => fetchUserSettings(userId, filters),
     {
       auto: 'deps-only',  // Don't auto-call on mount, only when deps change
@@ -759,7 +759,7 @@ function UserSettings({ userId }: { userId: string }) {
 
 ## API Reference
 
-### createAsyncController(asyncFn, options)
+### createAsync(asyncFn, options)
 
 **Returns:** Enhanced function with additional methods:
 - **Enhanced function**: Same signature as original function, but with caching, debouncing, etc.
@@ -767,7 +767,7 @@ function UserSettings({ userId }: { userId: string }) {
 - **`clearCache(...params)`**: Clear cache for one specific parameter combination
 
 ```typescript
-const enhancedFn = createAsyncController(originalFn, options);
+const enhancedFn = createAsync(originalFn, options);
 
 // Use like original function
 const result = await enhancedFn(param1, param2);
@@ -906,9 +906,9 @@ const noRetry = createAsync(fetchData, {
 | `onBackgroundUpdate` | `(data, error) => void` | Called when SWR background update completes |
 | `onBackgroundUpdateStart` | `(cachedData) => void` | Called when SWR background update starts |
 
-### useAsyncFunction(asyncFn, options)
+### useAsync(asyncFn, options)
 
-Extends `createAsyncController` options with React-specific features:
+Extends `createAsync` options with React-specific features:
 
 #### React-Specific Options
 | Option | Type | Default | Description |
@@ -932,11 +932,11 @@ Extends `createAsyncController` options with React-specific features:
 Starting from version 1.0.7-beta10, you can import individual modules. Multiple import paths are supported for better compatibility:
 
 ```typescript
-// Recommended: Use concise API names with kebab-case
+// Recommended: Use modern API names with kebab-case
 import { createAsync } from 'great-async/create-async';
 import { useAsync } from 'great-async/use-async';
 
-// Alternative: Use full API names
+// Legacy: Use full API names (deprecated)
 import { createAsyncController } from 'great-async/asyncController';
 import { useAsyncFunction } from 'great-async/useAsyncFunction';
 
@@ -1030,7 +1030,7 @@ async function fetchUserData(userId: string) {
 }
 
 // Enhanced function with caching, debouncing, retry - SAME SIGNATURE!
-const enhancedFetchUser = createAsyncController(fetchUserData, {
+const enhancedFetchUser = createAsync(fetchUserData, {
   ttl: 5 * 60 * 1000,
   debounceTime: 300,
   retryCount: 3,
@@ -1087,13 +1087,13 @@ const getUserData = async (userId: string) => {
 };
 
 // great-async - Framework Agnostic
-const fetchUser = createAsyncController(getUserData, {
+const fetchUser = createAsync(getUserData, {
   ttl: 5 * 60 * 1000,
   swr: true,
 });
 
 // React usage with manual control
-const { data, loading, error, fn: fetchUserProxy } = useAsyncFunction(
+const { data, loading, error, fn: fetchUserProxy } = useAsync(
   () => fetchUser(userId),
   {
     deps: [userId],
@@ -1139,12 +1139,14 @@ const fetchUserProfile = async (userId: string) => {
 };
 
 // great-async - Unique Features
-const searchAPI = createAsyncController(performSearch, {
+const searchAPI = createAsync(performSearch, {
   debounceTime: 300,
   debounceDimension: DIMENSIONS.PARAMETERS, // Per-parameter debouncing
   promiseDebounce: true, // Latest request wins
   swr: true,
-  retryCount: 3,
+  retryStrategy: (error, currentRetryCount) => {
+    return error.status >= 500 && currentRetryCount <= 3;
+  },
 });
 
 // TanStack Query - Requires additional setup
@@ -1181,7 +1183,7 @@ const { data, error, isLoading, mutate } = useSWR(
 const handleRefresh = () => mutate(); // ❌ Complex revalidation logic
 
 // After (great-async)
-const { data, error, loading, fn: fetchUserDataProxy } = useAsyncFunction(
+const { data, error, loading, fn: fetchUserDataProxy } = useAsync(
   (id: string = userId) => fetchUserData(id),
   {
     deps: [userId],
@@ -1214,7 +1216,7 @@ const { data, isLoading, error, refetch } = useQuery({
 const handleRefresh = () => refetch(); // ❌ No control over parameters
 
 // After (great-async)
-const { data, loading, error, fn: fetchPostsProxy } = useAsyncFunction(
+const { data, loading, error, fn: fetchPostsProxy } = useAsync(
   (params: { page: number } = { page }) => fetchPosts(params),
   {
     deps: [page],
@@ -1259,24 +1261,24 @@ While other libraries excel in specific areas (TanStack Query's DevTools, SWR's 
 ```tsx
 // From SWR
 - import useSWR from 'swr'
-+ import { useAsyncFunction } from 'great-async'
++ import { useAsync } from 'great-async'
 
 - const { data, error } = useSWR('/api/user', fetcher)
-+ const { data, error } = useAsyncFunction(fetchUser, { swr: true })
++ const { data, error } = useAsync(fetchUser, { swr: true })
 
 // From React Query
 - import { useQuery } from 'react-query'
-+ import { useAsyncFunction } from 'great-async'
++ import { useAsync } from 'great-async'
 
 - const { data, isLoading } = useQuery('user', fetchUser)
-+ const { data, loading } = useAsyncFunction(fetchUser, { ttl: 300000 })
++ const { data, loading } = useAsync(fetchUser, { ttl: 300000 })
 ```
 
 ## Best Practices
 
 ### ✅ Do's
 
-- Start with `createAsyncController` for framework-agnostic code
+- Start with `createAsync` for framework-agnostic code
 - Use `swr: true` for data that doesn't change often
 - Set appropriate `ttl` values based on data freshness needs
 - Use `debounceTime` for user input-triggered requests
@@ -1305,19 +1307,19 @@ While other libraries excel in specific areas (TanStack Query's DevTools, SWR's 
 
 ```typescript
 // ❌ BAD: Conflicting configuration
-const conflictedAPI = createAsyncController(searchFn, {
+const conflictedAPI = createAsync(searchFn, {
   debounceTime: 300,  // Delays execution
   single: true,       // Shares ongoing requests - CONFLICTS!
 });
 
 // ✅ GOOD: Use debounce for user input
-const searchAPI = createAsyncController(searchFn, {
+const searchAPI = createAsync(searchFn, {
   debounceTime: 300,
   promiseDebounce: true, // Latest request wins
 });
 
 // ✅ GOOD: Use single for expensive operations
-const heavyAPI = createAsyncController(heavyFn, {
+const heavyAPI = createAsync(heavyFn, {
   single: true,
   ttl: 60000, // Cache results
 });
