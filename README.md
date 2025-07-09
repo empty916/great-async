@@ -21,15 +21,19 @@
 npm install great-async
 ```
 
-## Core API - createAsyncController
+## Core API - createAsync / createAsyncController
 
-The heart of `great-async` is `createAsyncController` - a framework-agnostic function that enhances any async function with powerful features.
+The heart of `great-async` is `createAsync` (or `createAsyncController`) - a framework-agnostic function that enhances any async function with powerful features.
 
 ### Basic Usage
 
 ```typescript
+// Recommended: Use the concise API
+import { createAsync } from 'great-async';
+import { createAsync } from 'great-async/createAsync';
+
+// Alternative: Use the full name
 import { createAsyncController } from 'great-async';
-// or for tree-shaking
 import { createAsyncController } from 'great-async/asyncController';
 
 // Enhance any async function
@@ -38,7 +42,7 @@ const fetchUserData = async (userId: string) => {
   return response.json();
 };
 
-const enhancedFetch = createAsyncController(fetchUserData, {
+const enhancedFetch = createAsync(fetchUserData, {
   ttl: 60000, // Cache for 1 minute
   swr: true,  // Enable stale-while-revalidate
 });
@@ -58,7 +62,7 @@ const fetchData = async (param: string) => {
   return response.json();
 };
 
-const cachedAPI = createAsyncController(fetchData, {
+const cachedAPI = createAsync(fetchData, {
   ttl: 5 * 60 * 1000,     // Cache for 5 minutes
   cacheCapacity: 100,      // LRU cache with max 100 items
 });
@@ -290,19 +294,23 @@ const products = await searchProducts('laptop');    // Fresh search
 const moreProducts = await searchProducts('laptop'); // ⚡ Cached + background update
 ```
 
-## React Integration - useAsyncFunction
+## React Integration - useAsync / useAsyncFunction
 
-For React applications, `great-async` provides `useAsyncFunction` hook that builds on top of `createAsyncController`:
+For React applications, `great-async` provides `useAsync` (or `useAsyncFunction`) hook that builds on top of `createAsync`:
 
 ### Basic React Usage
 
 ```tsx
+// Recommended: Use the concise API
+import { useAsync } from 'great-async';
+import { useAsync } from 'great-async/useAsync';
+
+// Alternative: Use the full name
 import { useAsyncFunction } from 'great-async';
-// or for tree-shaking
 import { useAsyncFunction } from 'great-async/useAsyncFunction';
 
 function UserProfile({ userId }: { userId: string }) {
-  const { data, loading, error } = useAsyncFunction(
+  const { data, loading, error } = useAsync(
     () => fetch(`/api/users/${userId}`).then(res => res.json()),
     { deps: [userId] } // Re-run when userId changes
   );
@@ -817,15 +825,23 @@ Extends `createAsyncController` options with React-specific features:
 Starting from version 1.0.7-beta10, you can import individual modules. Multiple import paths are supported for better compatibility:
 
 ```typescript
-// Import only what you need
+// Recommended: Use concise API names with kebab-case
+import { createAsync } from 'great-async/create-async';
+import { useAsync } from 'great-async/use-async';
+
+// Alternative: Use full API names
 import { createAsyncController } from 'great-async/asyncController';
 import { useAsyncFunction } from 'great-async/useAsyncFunction';
-import { LRU } from 'great-async/LRU';
 
 // Alternative: direct dist imports for better bundler compatibility
+import { createAsync } from 'great-async/dist/create-async';
+import { useAsync } from 'great-async/dist/use-async';
 import { createAsyncController } from 'great-async/dist/asyncController';
 import { useAsyncFunction } from 'great-async/dist/useAsyncFunction';
-import { LRU } from 'great-async/dist/LRU';
+
+// Utility modules (kebab-case)
+import { createPromiseDebounce } from 'great-async/promise-debounce';
+import { sharedLoadingStateManager } from 'great-async/shared-loading-state-manager';
 ```
 
 ### TypeScript Support

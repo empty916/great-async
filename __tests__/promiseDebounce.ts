@@ -1,4 +1,4 @@
-import { createPromiseDebounceFn } from "../src/promiseDebounce";
+import { createPromiseDebounceFn } from "../src/promise-debounce";
 import { sleep } from "../src/utils";
 
 

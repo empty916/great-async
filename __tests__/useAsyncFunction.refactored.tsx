@@ -4,7 +4,7 @@ import '@testing-library/jest-dom/extend-expect';
 import { fireEvent, render, screen, waitFor, act } from '@testing-library/react';
 import { useEffect, useState } from 'react';
 import React from 'react';
-import { sharedLoadingStateManager } from '../src/SharedLoadingStateManager';
+import { sharedLoadingStateManager } from '../src/shared-loading-state-manager';
 import { 
   createTrackedAsyncFunction, 
   createErrorAsyncFunction, 

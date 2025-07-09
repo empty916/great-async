@@ -15,71 +15,64 @@
       "import": "./dist/asyncController.js",
       "require": "./dist/asyncController.js"
     },
+    "./create-async": {
+      "types": "./dist/create-async.d.ts",
+      "import": "./dist/create-async.js",
+      "require": "./dist/create-async.js"
+    },
     "./dist/asyncController": {
       "types": "./dist/asyncController.d.ts",
       "import": "./dist/asyncController.js",
       "require": "./dist/asyncController.js"
+    },
+    "./dist/create-async": {
+      "types": "./dist/create-async.d.ts",
+      "import": "./dist/create-async.js",
+      "require": "./dist/create-async.js"
     },
     "./useAsyncFunction": {
       "types": "./dist/useAsyncFunction.d.ts",
       "import": "./dist/useAsyncFunction.js",
       "require": "./dist/useAsyncFunction.js"
     },
+    "./use-async": {
+      "types": "./dist/use-async.d.ts",
+      "import": "./dist/use-async.js",
+      "require": "./dist/use-async.js"
+    },
     "./dist/useAsyncFunction": {
       "types": "./dist/useAsyncFunction.d.ts",
       "import": "./dist/useAsyncFunction.js",
       "require": "./dist/useAsyncFunction.js"
     },
-    "./SharedLoadingStateManager": {
-      "types": "./dist/SharedLoadingStateManager.d.ts",
-      "import": "./dist/SharedLoadingStateManager.js",
-      "require": "./dist/SharedLoadingStateManager.js"
+    "./dist/use-async": {
+      "types": "./dist/use-async.d.ts",
+      "import": "./dist/use-async.js",
+      "require": "./dist/use-async.js"
     },
-    "./dist/SharedLoadingStateManager": {
-      "types": "./dist/SharedLoadingStateManager.d.ts",
-      "import": "./dist/SharedLoadingStateManager.js",
-      "require": "./dist/SharedLoadingStateManager.js"
+    "./shared-loading-state-manager": {
+      "types": "./dist/shared-loading-state-manager.d.ts",
+      "import": "./dist/shared-loading-state-manager.js",
+      "require": "./dist/shared-loading-state-manager.js"
     },
-    "./promiseDebounce": {
-      "types": "./dist/promiseDebounce.d.ts",
-      "import": "./dist/promiseDebounce.js",
-      "require": "./dist/promiseDebounce.js"
+    "./dist/shared-loading-state-manager": {
+      "types": "./dist/shared-loading-state-manager.d.ts",
+      "import": "./dist/shared-loading-state-manager.js",
+      "require": "./dist/shared-loading-state-manager.js"
     },
-    "./dist/promiseDebounce": {
-      "types": "./dist/promiseDebounce.d.ts",
-      "import": "./dist/promiseDebounce.js",
-      "require": "./dist/promiseDebounce.js"
+    "./promise-debounce": {
+      "types": "./dist/promise-debounce.d.ts",
+      "import": "./dist/promise-debounce.js",
+      "require": "./dist/promise-debounce.js"
     },
-    "./LRU": {
-      "types": "./dist/LRU.d.ts",
-      "import": "./dist/LRU.js",
-      "require": "./dist/LRU.js"
-    },
-    "./dist/LRU": {
-      "types": "./dist/LRU.d.ts",
-      "import": "./dist/LRU.js",
-      "require": "./dist/LRU.js"
-    },
-    "./common": {
-      "types": "./dist/common.d.ts",
-      "import": "./dist/common.js",
-      "require": "./dist/common.js"
-    },
-    "./dist/common": {
-      "types": "./dist/common.d.ts",
-      "import": "./dist/common.js",
-      "require": "./dist/common.js"
-    },
-    "./utils": {
-      "types": "./dist/utils.d.ts",
-      "import": "./dist/utils.js",
-      "require": "./dist/utils.js"
-    },
-    "./dist/utils": {
-      "types": "./dist/utils.d.ts",
-      "import": "./dist/utils.js",
-      "require": "./dist/utils.js"
+    "./dist/promise-debounce": {
+      "types": "./dist/promise-debounce.d.ts",
+      "import": "./dist/promise-debounce.js",
+      "require": "./dist/promise-debounce.js"
     }
+
+
+
   },
   "scripts": {
     "test": "jest",
