@@ -181,9 +181,18 @@ const fetchData = async (param: string) => {
 
 const resilientAPI = createAsyncController(fetchData, {
   retryCount: 3,
-  retryStrategy: (error) => {
-    // Retry on server errors, not client errors
-    return error.status >= 500;
+  retryStrategy: (error, currentRetryCount) => {
+    // Retry on server errors, but limit retries for specific errors
+    if (error.status >= 500) {
+      // For 503 Service Unavailable, only retry first 2 attempts
+      if (error.status === 503) {
+        return currentRetryCount <= 2;
+      }
+      // For other server errors, retry all attempts
+      return true;
+    }
+    // Don't retry client errors
+    return false;
   },
 });
 
@@ -789,8 +798,106 @@ enhancedFn.clearCache(param1, param2);
 #### Reliability Options
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `retryCount` | `number` | `0` | Number of retry attempts |
-| `retryStrategy` | `function` | `() => true` | Custom retry logic |
+| `retryCount` | `number` | `0` | ⚠️ **Deprecated** - Number of retry attempts (use `retryStrategy` instead) |
+| `retryStrategy` | `function` | `() => true` | Custom retry logic `(error, currentRetryCount) => boolean` |
+
+##### Migration from retryCount to retryStrategy
+
+```typescript
+// ❌ Deprecated: Using retryCount
+const oldWay = createAsync(apiCall, {
+  retryCount: 3,
+  retryStrategy: (error) => error.status >= 500
+});
+
+// ✅ Recommended: Using retryStrategy only (independent control)
+const newWay = createAsync(apiCall, {
+  retryStrategy: (error, currentRetryCount) => {
+    return currentRetryCount <= 3 && error.status >= 500;
+  }
+});
+
+// ✅ Advanced: Complex retry logic without retryCount
+const advancedWay = createAsync(apiCall, {
+  retryStrategy: (error, currentRetryCount) => {
+    // Network errors: retry first 2 attempts
+    if (error.type === 'network') {
+      return currentRetryCount <= 2;
+    }
+
+    // Rate limiting: retry with exponential backoff
+    if (error.status === 429) {
+      return currentRetryCount <= 5;
+    }
+
+    // Server errors: retry first 3 attempts
+    if (error.status >= 500) {
+      return currentRetryCount <= 3;
+    }
+
+    // Don't retry client errors
+    return false;
+  }
+});
+```
+
+##### Advanced Retry Strategy Examples
+
+```typescript
+// Example 1: Independent retry control (no retryCount needed)
+const smartRetry = createAsync(apiCall, {
+  retryStrategy: (error, currentRetryCount) => {
+    // Don't retry client errors (4xx)
+    if (error.status >= 400 && error.status < 500) {
+      return false;
+    }
+
+    // Rate limiting: retry with increasing delays
+    if (error.status === 429) {
+      return currentRetryCount <= 5;
+    }
+
+    // Server errors: retry first 3 attempts
+    if (error.status >= 500) {
+      return currentRetryCount <= 3;
+    }
+
+    // Network errors: retry first 2 attempts only
+    if (error.message.includes('network') || error.message.includes('timeout')) {
+      return currentRetryCount <= 2;
+    }
+
+    return false;
+  }
+});
+
+// Example 2: Error-type based independent retry
+const typeBasedRetry = createAsync(fetchData, {
+  retryStrategy: (error, currentRetryCount) => {
+    // Critical operations: retry up to 5 times
+    if (error.critical) {
+      return currentRetryCount <= 5;
+    }
+
+    // Regular operations: retry up to 2 times
+    return currentRetryCount <= 2;
+  }
+});
+
+// Example 3: Backward compatible (with retryCount)
+const legacyRetry = createAsync(fetchData, {
+  retryCount: 3,
+  retryStrategy: (error) => {
+    // Old style - still works
+    return error.status >= 500;
+  }
+});
+
+// Example 4: No retry configuration (default behavior)
+const noRetry = createAsync(fetchData, {
+  // No retry parameters - will not retry on errors
+});
+```
 
 #### Callbacks
 | Option | Type | Description |
@@ -1173,7 +1280,7 @@ While other libraries excel in specific areas (TanStack Query's DevTools, SWR's 
 - Use `swr: true` for data that doesn't change often
 - Set appropriate `ttl` values based on data freshness needs
 - Use `debounceTime` for user input-triggered requests
-- Implement `retryStrategy` for better error handling
+- Use `retryStrategy` instead of deprecated `retryCount` for flexible retry control
 - Use `deps` array in React to control when requests re-run
 - Use `auto: 'deps-only'` for conditional data loading (e.g., search, filters)
 - Prefer `auto: false` for expensive operations that should be manually triggered
@@ -1184,6 +1291,7 @@ While other libraries excel in specific areas (TanStack Query's DevTools, SWR's 
 - Don't use SWR for real-time data that must be always fresh
 - Don't forget to handle errors in production
 - Don't set `cacheCapacity` too high in memory-constrained environments
+- **Don't use deprecated `retryCount`** - use `retryStrategy` instead for better control
 - **Don't combine `single: true` with `debounceTime`** - these features conflict with each other
 
 ### ⚠️ Feature Conflicts

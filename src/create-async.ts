@@ -70,14 +70,18 @@ export interface CreateAsyncOptions<
   genKeyByParams?: (params: Parameters<F>) => string;
   /**
    * retry count of call function when error occur
+   * @deprecated Use retryStrategy instead for more flexible retry control.
+   * retryStrategy can handle both retry count and custom retry logic.
+   * Example: retryStrategy: (error, currentRetryCount) => currentRetryCount <= 3
    */
   retryCount?: number;
   /**
    * retry strategy, if return value is true, it will retry to call function
-   * @param error
+   * @param error - the error that occurred
+   * @param currentRetryCount - current retry attempt number (1-based)
    * @returns
    */
-  retryStrategy?: (error: AsyncError) => boolean;
+  retryStrategy?: (error: AsyncError, currentRetryCount: number) => boolean;
   /**
    * cache capacity, cache removal strategy using LRU algorithm
    * default value is -1, means no cache size limit
@@ -154,7 +158,10 @@ export function createAsync<F extends PromiseFunction>(
     single = false,
     singleDimension = DIMENSIONS.FUNCTION,
     retryCount = 0,
-    retryStrategy = (error) => !!error,
+    retryStrategy = (error, currentRetryCount) => {
+      // Default behavior: if retryCount is specified, use it; otherwise don't retry
+      return retryCount > 0 ? currentRetryCount <= retryCount : false;
+    },
     genKeyByParams = defaultGenKeyByParams,
     cacheCapacity = -1,
     beforeRun,
@@ -174,14 +181,20 @@ export function createAsync<F extends PromiseFunction>(
 
   async function retryFn(
     params: Parameters<F>,
-    _retryCount: number = 0
+    currentAttempt: number = 1
   ): Promise<ReturnType<F>> {
     try {
       const res = await fn(...(params as any[]));
       return res;
     } catch (error) {
-      if (_retryCount > 0 && retryStrategy(error)) {
-        return retryFn(params, _retryCount - 1);
+      // Check if we should retry based on retryStrategy
+      const shouldRetry = retryStrategy(error, currentAttempt);
+
+      // If retryCount is specified (deprecated), also check against it
+      const withinRetryCountLimit = retryCount === 0 || currentAttempt <= retryCount;
+
+      if (shouldRetry && withinRetryCountLimit) {
+        return retryFn(params, currentAttempt + 1);
       }
       throw error;
     }
@@ -216,7 +229,7 @@ export function createAsync<F extends PromiseFunction>(
       // Start background update
       const backgroundUpdate = async () => {
         try {
-          const freshData = await finalFn(params, retryCount);
+          const freshData = await finalFn(params);
           // Update cache with fresh data
           const thisCache = cacheMap.get(fnProxy);
           if (thisCache && (ttl !== -1 || cacheCapacity !== -1)) {
@@ -268,7 +281,7 @@ export function createAsync<F extends PromiseFunction>(
       .then((arg: any) => {
         if (arg === undefined) {
           beforeRun?.();
-          const runFnPromise = finalFn(params, retryCount);
+          const runFnPromise = finalFn(params);
           return runFnPromise
             .then((res) => {
               // eslint-disable-next-line @typescript-eslint/no-shadow

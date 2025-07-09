@@ -13,12 +13,38 @@ All notable changes to this project will be documented in this file.
   - Full subpath import support for new APIs
 
 ### Enhanced
+- **Retry Strategy Enhancement**: Added `currentRetryCount` parameter and independent retry control
+  - `retryStrategy` now receives `(error, currentRetryCount)` instead of just `(error)`
+  - `currentRetryCount` is 1-based (1 for first retry, 2 for second retry, etc.)
+  - **Independent Retry Control**: `retryStrategy` can now work completely independently without `retryCount`
+  - Enables more sophisticated retry logic based on attempt number and error type
+  - Maintains backward compatibility with single-parameter functions and `retryCount`
+  ```typescript
+  // Independent retry control (no retryCount needed)
+  const smartRetry = createAsync(myFunction, {
+    retryStrategy: (error, currentRetryCount) => {
+      // Network errors: retry first 2 attempts
+      if (error.type === 'network') return currentRetryCount <= 2;
+      // Server errors: retry first 3 attempts
+      if (error.status >= 500) return currentRetryCount <= 3;
+      return false;
+    }
+  });
+
+  // Traditional approach (still supported)
+  const traditionalRetry = createAsync(myFunction, {
+    retryCount: 3,
+    retryStrategy: (error, currentRetryCount) => {
+      return currentRetryCount <= 2 && error.message.includes('network');
+    }
+  });
+  ```
 - **Import Flexibility**: Multiple ways to import the same functionality
   ```typescript
   // Concise (recommended)
   import { createAsync, useAsync } from 'great-async';
-  import { createAsync } from 'great-async/createAsync';
-  import { useAsync } from 'great-async/useAsync';
+  import { createAsync } from 'great-async/create-async';
+  import { useAsync } from 'great-async/use-async';
 
   // Original (still supported)
   import { createAsyncController, useAsyncFunction } from 'great-async';
@@ -57,6 +83,16 @@ All notable changes to this project will be documented in this file.
 ### Deprecated
 - `createAsyncController` - Use `createAsync` instead (will be removed in v2.0.0)
 - `useAsyncFunction` - Use `useAsync` instead (will be removed in v2.0.0)
+- `retryCount` - Use `retryStrategy` instead for more flexible retry control (will be removed in v2.0.0)
+  ```typescript
+  // ❌ Deprecated
+  createAsync(fn, { retryCount: 3 });
+
+  // ✅ Recommended
+  createAsync(fn, {
+    retryStrategy: (error, currentRetryCount) => currentRetryCount <= 3
+  });
+  ```
 
 ## [1.0.7-beta11] - 2025-01-08
 
