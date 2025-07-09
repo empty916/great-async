@@ -1,6 +1,6 @@
 {
   "name": "great-async",
-  "version": "1.0.7-beta10",
+  "version": "1.0.7-beta11",
   "description": "make async great again",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -70,9 +70,6 @@
       "import": "./dist/promise-debounce.js",
       "require": "./dist/promise-debounce.js"
     }
-
-
-
   },
   "scripts": {
     "test": "jest",
