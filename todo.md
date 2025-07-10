@@ -23,15 +23,15 @@
 #### 参数命名优化
 - [ ] 考虑 `cacheCapacity` → `capacity` 或 `maxCacheSize`
 - [ ] 考虑 `genKeyByParams` → `keyGenerator` 或 `cacheKey`
-- [ ] 考虑 `retryStrategy` → `shouldRetry`
+- [ ] 考虑 `retryStrategy` → `retry`
 - [ ] 考虑 `singleDimension` → `singleScope`
-- [ ] 考虑 `debounceDimension` → `debounceScope`
+- [ ] 考虑 `debounceDimension` → `takeLatestPromise`
 
 #### 参数分组重构
 - [ ] 缓存配置组 `cache: { ttl, capacity, keyGenerator, swr }`
-- [ ] 防抖配置组 `debounce: { time, scope, promiseDebounce }`
+- [ ] 防抖配置组 `debounce: { time, scope, takeLatestPromise }`
 - [ ] 单例配置组 `single: { enabled, scope }`
-- [ ] 重试配置组 `retry: { count, shouldRetry }`
+- [ ] 重试配置组 `retry: (error: any, currentRetryCount: number) => boolean`
 - [ ] 生命周期回调组 `hooks: { beforeRun, onBackgroundUpdateStart, onBackgroundUpdate }`
 
 #### 类型安全增强
