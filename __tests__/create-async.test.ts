@@ -156,7 +156,7 @@ test('promise and time debounce ', async () => {
 		}
 	}, {
 		debounceTime: 90,
-		promiseDebounce: true,
+		takeLatest: true,
 	});
 	
 	const queue: any[] = [];

@@ -102,7 +102,7 @@ const profile = await swrAPI('user123'); // ⚡ Returns cached data immediately
 // Background: fetches fresh data and updates cache
 ```
 
-#### 🚫 Promise Debounce
+#### 🎯 Take Latest Promise
 
 When multiple identical requests are made, only the latest one's result is used and all pending requests share its result:
 
@@ -114,7 +114,7 @@ const performSearch = async (query: string) => {
 };
 
 const searchAPI = createAsync(performSearch, {
-  promiseDebounce: true,
+  takeLatest: true,
 });
 
 // Make multiple calls in quick succession
@@ -245,7 +245,7 @@ class APIClient {
   private debouncedSearch = createAsync(this.httpGet, {
     debounceTime: 300,
     debounceDimension: DIMENSIONS.PARAMETERS, // Debounce per unique search query
-    promiseDebounce: true,      // Latest search wins, discard previous identical searches
+    takeLatest: true,      // Latest search wins, discard previous identical searches
   });
 
   async getUser(id: string) {
@@ -276,7 +276,7 @@ const createSearchController = (endpoint: string) => {
     {
       // Performance optimizations
       debounceTime: 300,           // Wait for user to stop typing
-      promiseDebounce: true,       // Latest search wins, discard previous identical searches
+      takeLatest: true,       // Latest search wins, discard previous identical searches
       
       // Caching strategy
       swr: true,                   // Show cached results instantly
@@ -581,7 +581,7 @@ function SearchBox() {
     {
       deps: [query],
       debounceTime: 300,     // Wait for user to stop typing
-      promiseDebounce: true, // Latest search wins, discard previous identical searches
+      takeLatest: true, // Latest search wins, discard previous identical searches
       auto: query.length > 2, // Only search with 3+ characters
     }
   );
@@ -791,7 +791,7 @@ enhancedFn.clearCache(param1, param2);
 |--------|------|---------|-------------|
 | `debounceTime` | `number` | `-1` | Debounce delay in milliseconds |
 | `debounceDimension` | `DIMENSIONS` | `FUNCTION` | Debounce scope:<br/>• `FUNCTION`: Debounce ignores parameters<br/>• `PARAMETERS`: Debounce per unique parameters |
-| `promiseDebounce` | `boolean` | `false` | Latest request wins - discard previous identical requests |
+| `takeLatest` | `boolean` | `false` | Latest request wins - discard previous identical requests |
 | `single` | `boolean` | `false` | Share result of first ongoing request with all pending requests |
 | `singleDimension` | `DIMENSIONS` | `FUNCTION` | Single mode scope:<br/>• `FUNCTION`: Single mode ignores parameters<br/>• `PARAMETERS`: Single mode per unique parameters |
 
@@ -947,7 +947,7 @@ import { createAsyncController } from 'great-async/dist/asyncController';
 import { useAsyncFunction } from 'great-async/dist/useAsyncFunction';
 
 // Utility modules (kebab-case)
-import { createPromiseDebounce } from 'great-async/promise-debounce';
+import { createTakeLatestPromise } from 'great-async/take-latest-promise';
 import { sharedLoadingStateManager } from 'great-async/shared-loading-state-manager';
 ```
 
@@ -968,7 +968,7 @@ Starting from version 1.0.7-beta10, TypeScript module resolution is fully suppor
 | **SWR Pattern** | ✅ Built-in | ✅ Built-in | ✅ Native | ✅ Built-in | ✅ Built-in |
 | **Debouncing** | ✅ Advanced | ❌ External | ❌ External | ❌ External | ❌ External |
 | **Single Mode** | ✅ Built-in | ❌ Manual | ❌ Manual | ❌ Manual | ❌ Manual |
-| **Promise Debounce** | ✅ Built-in | ❌ No | ❌ No | ❌ No | ❌ No |
+| **Take Latest Promise** | ✅ Built-in | ❌ No | ❌ No | ❌ No | ❌ No |
 | **Retry Logic** | ✅ Configurable | ✅ Advanced | ✅ Basic | ✅ Basic | ✅ Advanced |
 | **Offline Support** | ✅ Cache-based | ✅ Advanced | ✅ Basic | ✅ Basic | ✅ Advanced |
 | **DevTools** | ❌ No | ✅ Excellent | ❌ No | ✅ Redux | ✅ Excellent |
@@ -1142,7 +1142,7 @@ const fetchUserProfile = async (userId: string) => {
 const searchAPI = createAsync(performSearch, {
   debounceTime: 300,
   debounceDimension: DIMENSIONS.PARAMETERS, // Per-parameter debouncing
-  promiseDebounce: true, // Latest request wins
+  takeLatest: true, // Latest request wins
   swr: true,
   retryStrategy: (error, currentRetryCount) => {
     return error.status >= 500 && currentRetryCount <= 3;
@@ -1315,7 +1315,7 @@ const conflictedAPI = createAsync(searchFn, {
 // ✅ GOOD: Use debounce for user input
 const searchAPI = createAsync(searchFn, {
   debounceTime: 300,
-  promiseDebounce: true, // Latest request wins
+  takeLatest: true, // Latest request wins
 });
 
 // ✅ GOOD: Use single for expensive operations

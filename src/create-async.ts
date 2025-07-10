@@ -1,7 +1,7 @@
 import type { CacheData, PickPromiseType, PromiseFunction, T_DIMENSIONS, AsyncError } from "./common";
 import { cacheMap, defaultGenKeyByParams, DIMENSIONS, FalsyValue, getCache } from "./common";
 import { LRU } from "./LRU";
-import { createPromiseDebounceFn } from "./promise-debounce";
+import { createTakeLatestPromiseFn } from "./take-latest-promise";
 
 export { DIMENSIONS, cacheMap, CacheData };
 
@@ -89,7 +89,13 @@ export interface CreateAsyncOptions<
   cacheCapacity?: number;
 
   beforeRun?: () => any;
-  promiseDebounce?: boolean;
+  /**
+   * Enable take-latest behavior for promises.
+   * When multiple calls are made with the same key, all calls will resolve with the result of the latest call.
+   * Similar to RxJS's takeLatest operator.
+   * @default false
+   */
+  takeLatest?: boolean;
   /**
    * Enable stale-while-revalidate pattern
    * When true, if cache exists, return cached data immediately and update cache in background
@@ -152,7 +158,7 @@ export function createAsync<F extends PromiseFunction>(
   fn: F,
   {
     debounceTime = -1,
-    promiseDebounce = false,
+    takeLatest = false,
     debounceDimension = DIMENSIONS.FUNCTION,
     ttl = -1,
     single = false,
@@ -202,11 +208,11 @@ export function createAsync<F extends PromiseFunction>(
 
   let finalFn = retryFn;
 
-  if (promiseDebounce) {
+  if (takeLatest) {
     if (debounceDimension === DIMENSIONS.FUNCTION) {
-      finalFn = createPromiseDebounceFn(retryFn as any, () => DEFAULT_PROMISE_DEBOUNCE_KEY);
+      finalFn = createTakeLatestPromiseFn(retryFn as any, () => DEFAULT_PROMISE_DEBOUNCE_KEY);
     } else if (debounceDimension === DIMENSIONS.PARAMETERS) {
-      finalFn = createPromiseDebounceFn(retryFn as any, genKeyByParams, true);
+      finalFn = createTakeLatestPromiseFn(retryFn as any, genKeyByParams, true);
     }
   }
 
