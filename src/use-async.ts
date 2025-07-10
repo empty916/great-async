@@ -26,15 +26,9 @@ const initDeps: any[] = [];
 export interface UseAsyncOptions<F extends PromiseFunction>
   extends CreateAsyncOptions<F> {
   /**
-   * dependence list，it works when manual is false
+   * dependence list，it works when auto is true or 'deps-only'
    */
   deps?: DependencyList;
-  /**
-   * @deprecated Please use auto option instead.
-   * @description whether to call fn manually.
-   * @default undefined
-   */
-  manual?: boolean;
   /**
    * @description whether to call fn automatically
    * - true: auto-call on mount and when deps change
@@ -119,15 +113,17 @@ export type UseAsyncReturn<F extends PromiseFunction> =
  *
  * @example
  * ```typescript
- * import { useAsync } from 'great-async/useAsync';
+ * import { useAsync } from 'great-async/use-async';
  *
  * function UserProfile({ userId }: { userId: string }) {
  *   const { data, loading, error } = useAsync(
  *     () => fetch(`/api/users/${userId}`).then(res => res.json()),
  *     {
  *       deps: [userId],
- *       ttl: 5 * 60 * 1000,
- *       swr: true
+ *       cache: {
+ *         ttl: 5 * 60 * 1000,
+ *         swr: true
+ *       }
  *     }
  *   );
  *
@@ -143,13 +139,14 @@ export const useAsync = <F extends PromiseFunction>(
 ) => {
   const {
     deps,
-    manual,
     auto = true,
     loadingId,
-    swr = false,
-    onBackgroundUpdate,
     ...createAsyncOptions
   } = opts;
+
+  const { swr = false } = createAsyncOptions.cache || {};
+  const { onBackgroundUpdate, } = createAsyncOptions.hooks || {};
+
   const stateRef = useRef({
     isMounted: false,
     depsRef: initDeps as DependencyList,
@@ -160,7 +157,6 @@ export const useAsync = <F extends PromiseFunction>(
   const argsRef = useRef({
     asyncFn,
     deps: undefined as DependencyList | undefined,
-    manual: manual,
     auto: auto,
     loadingId: '',
     onBackgroundUpdate: onBackgroundUpdate,
@@ -169,14 +165,13 @@ export const useAsync = <F extends PromiseFunction>(
   const [asyncFunctionState, setAsyncFunctionState] = useState<
     AsyncFunctionState<PickPromiseType<F> | null>
   >({
-    loading: manual === undefined ? (auto === true) : !manual,
+    loading: auto === true,
     error: null,
     data: null,
   });
   const [backgroundUpdating, setBackgroundUpdating] = useState(false);
 
   argsRef.current.asyncFn = asyncFn;
-  argsRef.current.manual = manual;
   argsRef.current.auto = auto;
   argsRef.current.deps = deps;
   argsRef.current.loadingId = loadingId || '';
@@ -219,48 +214,59 @@ export const useAsync = <F extends PromiseFunction>(
   const fnProxy = useMemo(() => {
     const fn1 = (...args: Parameters<F>) =>
       argsRef.current.asyncFn(...(args as any));
-    return createAsync(fn1 as F, {
+
+    // Merge SWR configuration
+    const mergedOptions = {
       ...createAsyncOpts,
-      swr,
-      onBackgroundUpdateStart: swr ? (cachedData: PickPromiseType<F>) => {
-        // Background update is starting, set backgroundUpdating state
-        setBackgroundUpdating(true);
-      } : undefined,
-      onBackgroundUpdate: swr ? (data: PickPromiseType<F> | undefined, error: AsyncError | undefined) => {
-        // Background update completed, update data and clear background updating state
-        if (data !== undefined) {
-          setAsyncFunctionState(prev => ({
-            ...prev,
-            data,
-            error: null,
-          }));
-        }
-        if (error) {
-          setAsyncFunctionState(prev => ({
-            ...prev,
-            error,
-          }));
-        }
-        setBackgroundUpdating(false);
-        argsRef.current.onBackgroundUpdate?.(data, error);
-      } : undefined,
-      beforeRun:
-        createAsyncOpts.debounceTime !== -1 ||
-        createAsyncOpts.beforeRun
-          ? () => {
-              setAsyncFunctionState((ov) => {
-                if (ov.loading) {
-                  return ov;
-                }
-                return {
-                  ...ov,
-                  loading: true,
-                };
-              });
-              createAsyncOpts.beforeRun?.();
-            }
-          : undefined,
-    });
+      cache: {
+        ...createAsyncOpts.cache,
+      },
+      hooks: {
+        ...createAsyncOpts.hooks,
+        onBackgroundUpdateStart: swr ? (cachedData: PickPromiseType<F>) => {
+          // Background update is starting, set backgroundUpdating state
+          setBackgroundUpdating(true);
+          createAsyncOpts.hooks?.onBackgroundUpdateStart?.(cachedData);
+        } : createAsyncOpts.hooks?.onBackgroundUpdateStart,
+        onBackgroundUpdate: swr ? (data: PickPromiseType<F> | undefined, error: AsyncError | undefined) => {
+          // Background update completed, update data and clear background updating state
+          if (data !== undefined) {
+            setAsyncFunctionState(prev => ({
+              ...prev,
+              data,
+              error: null,
+            }));
+          }
+          if (error) {
+            setAsyncFunctionState(prev => ({
+              ...prev,
+              error,
+            }));
+          }
+          setBackgroundUpdating(false);
+          argsRef.current.onBackgroundUpdate?.(data, error);
+          createAsyncOpts.hooks?.onBackgroundUpdate?.(data, error);
+        } : createAsyncOpts.hooks?.onBackgroundUpdate,
+        beforeRun:
+          createAsyncOpts.debounce?.time !== -1 ||
+          createAsyncOpts.hooks?.beforeRun
+            ? () => {
+                setAsyncFunctionState((ov) => {
+                  if (ov.loading) {
+                    return ov;
+                  }
+                  return {
+                    ...ov,
+                    loading: true,
+                  };
+                });
+                createAsyncOpts.hooks?.beforeRun?.();
+              }
+            : undefined,
+      }
+    };
+
+    return createAsync(fn1 as F, mergedOptions);
   }, [createAsyncOpts, swr]);
 
   const createRunFn = useCallback(
@@ -268,7 +274,7 @@ export const useAsync = <F extends PromiseFunction>(
       return async (...args: Parameters<F>) => {
         await Promise.resolve();
 
-        if (createAsyncOpts.debounceTime === -1) {
+        if ((createAsyncOpts.debounce?.time || -1) === -1) {
           setAsyncFunctionState((ov) => {
             if (ov.loading) {
               return ov;
@@ -323,7 +329,7 @@ export const useAsync = <F extends PromiseFunction>(
     }
     stateRef.current.isMounted = true;
     // Skip auto-call on mount if manual is true or auto is false/deps-only
-    if (argsRef.current.manual ?? (argsRef.current.auto === false || argsRef.current.auto === 'deps-only')) {
+    if (argsRef.current.auto === false || argsRef.current.auto === 'deps-only') {
       return;
     }
     // @ts-ignore
@@ -340,7 +346,7 @@ export const useAsync = <F extends PromiseFunction>(
     }
     stateRef.current.depsRef = ld!;
     // Allow auto-call on deps change if manual is false and auto is true or 'deps-only'
-    if (argsRef.current.manual ?? (argsRef.current.auto === false)) {
+    if (argsRef.current.auto === false) {
       return;
     }
     // @ts-ignore

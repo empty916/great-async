@@ -17,14 +17,16 @@
 ### Basic Usage
 
 ```tsx
-import { useAsyncFunction } from 'great-async';
+import { useAsync } from 'great-async';
 
 const UserProfile = () => {
-  const { data, loading, backgroundUpdating } = useAsyncFunction(
+  const { data, loading, backgroundUpdating } = useAsync(
     fetchUserProfile,
     {
-      ttl: 5 * 60 * 1000, // 5 minutes cache
-      swr: true, // Enable stale-while-revalidate
+      cache: {
+        ttl: 5 * 60 * 1000, // 5 minutes cache
+        swr: true, // Enable stale-while-revalidate
+      }
     }
   );
 
@@ -48,18 +50,22 @@ const UserProfile = () => {
 
 ```tsx
 const UserProfile = () => {
-  const { data, loading, backgroundUpdating } = useAsyncFunction(
+  const { data, loading, backgroundUpdating } = useAsync(
     fetchUserProfile,
     {
-      ttl: 5 * 60 * 1000,
-      swr: true,
-      onBackgroundUpdate: (newData, error) => {
-        if (error) {
-          console.error('Background update failed:', error);
-        } else {
-          console.log('Data updated in background:', newData);
-        }
+      cache: {
+        ttl: 5 * 60 * 1000,
+        swr: true,
       },
+      hooks: {
+        onBackgroundUpdate: (newData, error) => {
+          if (error) {
+            console.error('Background update failed:', error);
+          } else {
+            console.log('Data updated in background:', newData);
+          }
+        },
+      }
     }
   );
 
@@ -71,11 +77,12 @@ const UserProfile = () => {
 
 ```tsx
 const UserProfile = () => {
-  const { data, loading, backgroundUpdating, fn } = useAsyncFunction(
+  const { data, loading, backgroundUpdating, fn } = useAsync(
     fetchUserProfile,
     {
       auto: false,
-      ttl: 5 * 60 * 1000,
+      cache: {
+        ttl: 5 * 60 * 1000,
       swr: true,
     }
   );
@@ -123,23 +130,29 @@ const UserProfile = () => {
 
 ```tsx
 // For frequently changing data, set shorter cache time
-const { data } = useAsyncFunction(fetchStockPrice, {
-  ttl: 30 * 1000, // 30 seconds
-  swr: true,
+const { data } = useAsync(fetchStockPrice, {
+  cache: {
+    ttl: 30 * 1000, // 30 seconds
+    swr: true,
+  }
 });
 
 // For relatively stable data, set longer cache time
-const { data } = useAsyncFunction(fetchUserProfile, {
-  ttl: 5 * 60 * 1000, // 5 minutes
-  swr: true,
+const { data } = useAsync(fetchUserProfile, {
+  cache: {
+    ttl: 5 * 60 * 1000, // 5 minutes
+    swr: true,
+  }
 });
 ```
 
 ### 2. Provide Visual Feedback
 
 ```tsx
-const { data, backgroundUpdating } = useAsyncFunction(fetchData, {
-  swr: true,
+const { data, backgroundUpdating } = useAsync(fetchData, {
+  cache: {
+    swr: true,
+  }
 });
 
 return (
@@ -158,26 +171,36 @@ return (
 ### 3. Error Handling
 
 ```tsx
-const { data, backgroundUpdating } = useAsyncFunction(fetchData, {
-  swr: true,
-  onBackgroundUpdate: (newData, error) => {
-    if (error) {
-      // Show error message without affecting current displayed data
-      toast.error('Failed to update data, but you can still use cached data');
-    }
+const { data, backgroundUpdating } = useAsync(fetchData, {
+  cache: {
+    swr: true,
   },
+  hooks: {
+    onBackgroundUpdate: (newData, error) => {
+      if (error) {
+        // Show error message without affecting current displayed data
+        toast.error('Failed to update data, but you can still use cached data');
+      }
+    },
+  }
 });
 ```
 
 ### 4. Combine with Other Features
 
 ```tsx
-const { data, loading, backgroundUpdating } = useAsyncFunction(fetchData, {
-  ttl: 5 * 60 * 1000,
-  swr: true,
-  debounceTime: 300, // Debouncing
-  single: true, // Single mode
-  retryCount: 3, // Retry attempts
+const { data, loading, backgroundUpdating } = useAsync(fetchData, {
+  cache: {
+    ttl: 5 * 60 * 1000,
+    swr: true,
+  },
+  debounce: {
+    time: 300, // Debouncing
+  },
+  single: {
+    enabled: true, // Single mode
+  },
+  retry: (error, count) => count <= 3, // Retry attempts
 });
 ```
 
@@ -204,16 +227,18 @@ const { data, loading, backgroundUpdating } = useAsyncFunction(fetchData, {
 If you're using the old `staleWhileRevalidate` property, you can easily migrate to the new `swr` property:
 
 ```tsx
-// Old API (still supported)
+// Old API (removed in v2.0)
 const { data } = useAsyncFunction(fetchData, {
   staleWhileRevalidate: true,
   ttl: 60000,
 });
 
-// New API (recommended)
-const { data } = useAsyncFunction(fetchData, {
-  swr: true,
-  ttl: 60000,
+// New API (v2.0)
+const { data } = useAsync(fetchData, {
+  cache: {
+    swr: true,
+    ttl: 60000,
+  }
 });
 ```
 

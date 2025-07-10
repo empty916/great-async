@@ -33,13 +33,22 @@ export class FalsyValue {
   }
 }
 
-export const DIMENSIONS = {
+export const SCOPE = {
   FUNCTION: 0,
   PARAMETERS: 1,
 } as const;
 
+/**
+ * @deprecated Use SCOPE instead. DIMENSIONS will be removed in v3.0.0
+ */
+export const DIMENSIONS = SCOPE;
 
-export type T_DIMENSIONS = typeof DIMENSIONS[keyof typeof DIMENSIONS];
+export type T_SCOPE = typeof SCOPE[keyof typeof SCOPE];
+
+/**
+ * @deprecated Use T_SCOPE instead. T_DIMENSIONS will be removed in v3.0.0
+ */
+export type T_DIMENSIONS = T_SCOPE;
 
 
 

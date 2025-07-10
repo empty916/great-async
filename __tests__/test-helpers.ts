@@ -81,10 +81,10 @@ export const actWrapper = async (fn: () => void | Promise<void>) => {
 // Common test component template
 export const createBasicTestComponent = (asyncFn: any, options = {}) => {
   const React = require('react');
-  const { useAsyncFunction } = require('../src');
-  
+  const { useAsync } = require('../src');
+
   return () => {
-    const { loading, data, error } = useAsyncFunction(asyncFn, options);
+    const { loading, data, error } = useAsync(asyncFn, options);
     
     if (loading) {
       return React.createElement('span', { role: 'loading' }, 'loading');
@@ -105,12 +105,12 @@ export const createBasicTestComponent = (asyncFn: any, options = {}) => {
 // Create interactive test component
 export const createInteractiveTestComponent = (asyncFn: any, options = {}) => {
   const React = require('react');
-  const { useAsyncFunction } = require('../src');
+  const { useAsync } = require('../src');
   const { useState } = React;
-  
+
   return () => {
     const [flag, setFlag] = useState(1);
-    const { loading, data, error } = useAsyncFunction(asyncFn, {
+    const { loading, data, error } = useAsync(asyncFn, {
       ...options,
       deps: [flag]
     });

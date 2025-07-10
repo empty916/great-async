@@ -140,7 +140,7 @@ test('should cache data with TTL configuration', async () => {
     };
 
     const App = () => {
-        const { loading, data, fn } = useAsync(getUserInfo, {ttl: 30});
+        const { loading, data, fn } = useAsync(getUserInfo, {cache: { ttl: 30 }});
         useEffect(() => {
             if (!data) {
                 return;
@@ -183,7 +183,7 @@ test('should combine TTL with single mode', async () => {
     };
 
     const App = () => {
-        const { loading, data, fn } = useAsync(getUserInfo, {ttl: 30, single: true});
+        const { loading, data, fn } = useAsync(getUserInfo, {cache: { ttl: 30 }, single: { enabled: true }});
         fn().then(res => {
             if (!data) {
                 return;
@@ -285,7 +285,7 @@ test('should handle errors with auto false and debounce', async () => {
     const App = () => {
         const { loading, error, fn } = useAsync(getUserInfo, {
             auto: false,
-            debounceTime: 10
+            debounce: { time: 10 }
         });
 
         useEffect(() => {
@@ -328,7 +328,7 @@ test('should prevent duplicate calls in single mode', async () => {
     const App = () => {
         const { loading, data, fn } = useAsync(getUserInfo, {
             auto: false,
-            single: true
+            single: { enabled: true }
         });
 
         useEffect(() => {
@@ -368,7 +368,7 @@ test('should debounce multiple rapid calls', async () => {
     const App = () => {
         const { loading, data, fn } = useAsync(getUserInfo, {
             auto: false,
-            debounceTime: 100,
+            debounce: { time: 100 },
         });
         const [, setFlag] = useState(1);
 
@@ -410,7 +410,7 @@ test('should debounce with auto false mode', async () => {
     const App = () => {
         const { loading, data, fn } = useAsync(getUserInfo, {
             auto: false,
-            debounceTime: 100,
+            debounce: { time: 100 },
         });
 
         useEffect(() => {
@@ -618,7 +618,7 @@ test('should combine dependencies with single mode', async () => {
         const [flag, setFlag] = useState(1);
         const { loading, data } = useAsync(getUserInfo, {
             deps: [flag],
-            single: true,
+            single: { enabled: true },
         });
 
         if (loading || !data) {
@@ -660,7 +660,7 @@ test('should combine dependencies with debounce', async () => {
         const [flag, setFlag] = useState(1);
         const { loading, data } = useAsync(getUserInfo, {
             deps: [flag],
-            debounceTime: 30,
+            debounce: { time: 30 },
         });
 
         if (loading || !data) {

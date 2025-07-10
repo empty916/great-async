@@ -3,7 +3,7 @@
 
 ### 高优先级 - 新增实用方法（向后兼容）
 
-#### useAsyncFunction 新增方法
+#### useAsync 新增方法
 - [ ] 添加 `refresh()` 方法 - 强制刷新数据（忽略缓存）
 - [ ] 添加 `reset()` 方法 - 重置状态到初始值
 - [ ] 添加 `mutate(data)` 方法 - 手动更新数据（支持乐观更新）
@@ -21,15 +21,15 @@
 ### 中优先级 - 参数优化（下个大版本）
 
 #### 参数命名优化
-- [ ] 考虑 `cacheCapacity` → `capacity` 或 `maxCacheSize`
-- [ ] 考虑 `genKeyByParams` → `keyGenerator` 或 `cacheKey`
+- [ ] 考虑 `cacheCapacity` → `capacity`
+- [ ] 考虑 `genKeyByParams` → `keyGenerator`
 - [ ] 考虑 `retryStrategy` → `retry`
 - [ ] 考虑 `singleDimension` → `singleScope`
-- [ ] 考虑 `debounceDimension` → `takeLatestPromise`
+- [ ] 考虑 `debounceDimension` → `takeLatest`
 
 #### 参数分组重构
 - [ ] 缓存配置组 `cache: { ttl, capacity, keyGenerator, swr }`
-- [ ] 防抖配置组 `debounce: { time, scope, takeLatestPromise }`
+- [ ] 防抖配置组 `debounce: { time, scope, takeLatest }`
 - [ ] 单例配置组 `single: { enabled, scope }`
 - [ ] 重试配置组 `retry: (error: any, currentRetryCount: number) => boolean`
 - [ ] 生命周期回调组 `hooks: { beforeRun, onBackgroundUpdateStart, onBackgroundUpdate }`

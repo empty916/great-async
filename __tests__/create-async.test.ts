@@ -1,4 +1,4 @@
-import { DIMENSIONS, cacheMap, createAsync } from '../src';
+import { SCOPE, cacheMap, createAsync } from '../src';
 import { sleep } from '../src/utils';
 
 
@@ -36,7 +36,7 @@ test('single', async () => {
 			age: 10
 		}
 	}, {
-		single: true,
+		single: { enabled: true },
 	});
 	
 	const queue: any[] = [];
@@ -64,8 +64,7 @@ test('single with parameter dimension 1', async () => {
 			age: 10
 		}
 	}, {
-		single: true,
-		singleDimension: DIMENSIONS.PARAMETERS
+		single: { enabled: true, scope: SCOPE.PARAMETERS }
 	});
 	
 	const queue: any[] = [];
@@ -93,8 +92,7 @@ test('single with parameter dimension 2', async () => {
 			age: 10
 		}
 	}, {
-		single: true,
-		singleDimension: DIMENSIONS.PARAMETERS
+		single: { enabled: true, scope: SCOPE.PARAMETERS }
 	});
 	
 	const queue: any[] = [];
@@ -119,7 +117,7 @@ test('debounce time', async () => {
 			age: 10
 		}
 	}, {
-		debounceTime: 90,
+		debounce: { time: 90 },
 	});
 	
 	const queue: any[] = [];
@@ -155,8 +153,7 @@ test('promise and time debounce ', async () => {
 			}
 		}
 	}, {
-		debounceTime: 90,
-		takeLatest: true,
+		debounce: { time: 90, takeLatest: true },
 	});
 	
 	const queue: any[] = [];
@@ -192,8 +189,7 @@ test('debounce time with parameter dimension 1', async () => {
 			age: 10
 		}
 	}, {
-		debounceTime: 90,
-		debounceDimension: DIMENSIONS.PARAMETERS
+		debounce: { time: 90, scope: SCOPE.PARAMETERS }
 	});
 	
 	const queue: any[] = [];
@@ -220,8 +216,7 @@ test('debounce time with parameter dimension 2', async () => {
 			age: 10
 		}
 	}, {
-		debounceTime: 90,
-		debounceDimension: DIMENSIONS.PARAMETERS
+		debounce: { time: 90, scope: SCOPE.PARAMETERS }
 	});
 	
 	const queue: any[] = [];
@@ -246,7 +241,7 @@ test('ttl', async () => {
 			age: 10
 		}
 	}, {
-		ttl: 310,
+		cache: { ttl: 310 },
 	});
 	
 	const resList: any[] = [];
@@ -272,7 +267,7 @@ test('cacheCapacity', async () => {
 			age: 10
 		}
 	}, {
-		cacheCapacity: 2,
+		cache: { capacity: 2 },
 	});
 	
 	const resList: any[] = [];
@@ -298,7 +293,7 @@ test('cacheCapacity work', async () => {
 			age: 10
 		}
 	}, {
-		cacheCapacity: 3,
+		cache: { capacity: 3 },
 	});
 	
 	const resList: any[] = [];
@@ -324,8 +319,8 @@ test('ttl and debounce', async () => {
 			age: 10
 		}
 	}, {
-		debounceTime: 50,
-		ttl: 160 * 4,
+		debounce: { time: 50 },
+		cache: { ttl: 160 * 4 },
 	});
 	
 	await Promise.all([
@@ -367,8 +362,7 @@ test('genKeyByParams', async () => {
 			age: 10
 		}
 	}, {
-		ttl: 310,
-		genKeyByParams: ([name]) => name || '[]',
+		cache: { ttl: 310, keyGenerator: (params: [string?]) => params[0] || '[]' },
 	});
 	
 	const resList: any[] = [];
@@ -398,8 +392,7 @@ test('clear cache', async () => {
 			age: 10
 		}
 	}, {
-		ttl: 310,
-		genKeyByParams: ([name]) => name || '[]',
+		cache: { ttl: 310, keyGenerator: (params: [string?]) => params[0] || '[]' },
 	});
 	
 	await getUserData('0');
@@ -436,8 +429,7 @@ test('clear all cache', async () => {
 			age: 10
 		}
 	}, {
-		ttl: 310,
-		genKeyByParams: ([name]) => name || '[]',
+		cache: { ttl: 310, keyGenerator: (params: [string?]) => params[0] || '[]' },
 	});
 	
 	const resList: any[] = [];
@@ -466,8 +458,7 @@ test('clear expired cache', async () => {
 			age: 10
 		}
 	}, {
-		ttl: 100,
-		genKeyByParams: ([name]) => name || '[]',
+		cache: { ttl: 100, keyGenerator: (params: [string?]) => params[0] || '[]' },
 	});
 	await getUserData('x');
 	expect(cacheMap.get(getUserData)?.get('x')?.data).toEqual({
@@ -500,7 +491,7 @@ test('retry error', async () => {
 		times++;
 		await sleep(100);
 		throw new Error('error message');
-	}, {retryCount: 2});
+	}, { retry: (error: any, currentRetryCount: number) => currentRetryCount <= 2 });
 	
 	await expect(getUserData()).rejects.toThrow('error message');
 	expect(times).toBe(3);
@@ -513,7 +504,7 @@ test('retry error', async () => {
 		times++;
 		await sleep(100);
 		throw new Error('error message');
-	}, {retryCount: 2});
+	}, { retry: (error: any, currentRetryCount: number) => currentRetryCount <= 2 });
 	
 	await expect(getUserData()).rejects.toThrow('error message');
 	expect(times).toBe(3);
@@ -530,21 +521,18 @@ test('retry error with custom retry strategy', async () => {
 		await sleep(100);
 		throw new Error('error message');
 	}, {
-		retryCount: 2,
-		retryStrategy: error => error.message === 'error'
+		retry: (error: any, currentRetryCount) => error.message === 'error' && currentRetryCount <= 2
 	});
 	await expect(getUserData()).rejects.toThrow('error message');
 	expect(times).toBe(1);
 	await expect(getUserData()).rejects.toThrow('error message');
 	expect(times).toBe(2);
-
 	const getUserData2 = createAsync(async () => {
 		times1++;
 		await sleep(100);
 		throw new Error('error message');
 	}, {
-		retryCount: 2,
-		retryStrategy: error => error.message === 'error message'
+		retry: (error: any, currentRetryCount: number) => error.message === 'error message' && currentRetryCount <= 2
 	});
 	await expect(getUserData2()).rejects.toThrow('error message');
 	expect(times1).toBe(3);
@@ -565,7 +553,7 @@ test('retry call fn when occur error and return success finally', async () => {
 			name: 'tom',
 			age: 10
 		}
-	}, {retryCount: 2});
+	}, { retry: (error: any, currentRetryCount: number) => currentRetryCount <= 2 });
 	return getUserData().then(res => {
 		expect(res).toEqual({
 			name: 'tom',

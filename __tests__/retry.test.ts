@@ -1,4 +1,4 @@
-import { createAsync } from '../src';
+import { createAsync, AsyncError } from '../src';
 
 describe('retryStrategy with currentRetryCount parameter', () => {
   it('should pass currentRetryCount as second parameter to retryStrategy', async () => {
@@ -11,8 +11,7 @@ describe('retryStrategy with currentRetryCount parameter', () => {
     };
 
     const retryFn = createAsync(failingFunction, {
-      retryCount: 3,
-      retryStrategy: (error, currentRetryCount) => {
+      retry: (error: AsyncError, currentRetryCount: number) => {
         retryAttempts.push(currentRetryCount);
         return currentRetryCount <= 2; // Only retry first 2 attempts
       }
@@ -38,10 +37,9 @@ describe('retryStrategy with currentRetryCount parameter', () => {
     };
 
     const retryFn = createAsync(failingFunction, {
-      retryCount: 5,
-      retryStrategy: (error, currentRetryCount) => {
+      retry: (error: AsyncError, currentRetryCount: number) => {
         let shouldRetry = false;
-        
+
         // Retry on first 2 attempts for any error
         if (currentRetryCount <= 2) {
           shouldRetry = true;
@@ -54,7 +52,7 @@ describe('retryStrategy with currentRetryCount parameter', () => {
         else {
           shouldRetry = false;
         }
-        
+
         retryDecisions.push(shouldRetry);
         return shouldRetry;
       }
@@ -80,10 +78,10 @@ describe('retryStrategy with currentRetryCount parameter', () => {
     };
 
     const retryFn = createAsync(failingFunction, {
-      retryCount: 2,
-      retryStrategy: (error) => {
+      
+      retry: (error: AsyncError, currentRetryCount: number) => {
         errorReceived = error;
-        return error.message.includes('Error'); // Simple error-based retry
+        return error.message.includes('Error') && currentRetryCount <= 3; // Simple error-based retry with limit
       }
     });
 
@@ -93,7 +91,7 @@ describe('retryStrategy with currentRetryCount parameter', () => {
       // Expected to fail
     }
 
-    expect(callCount).toBe(3); // Initial call + 2 retries
+    expect(callCount).toBe(4); // Initial call + 3 retries (limited by our retry logic)
     expect(errorReceived).toBeTruthy();
     expect(errorReceived.message).toContain('Error');
   });
@@ -107,8 +105,8 @@ describe('retryStrategy with currentRetryCount parameter', () => {
     };
 
     const retryFn = createAsync(failingFunction, {
-      retryCount: 5,
-      retryStrategy: (error, currentRetryCount) => {
+      
+      retry: (error: AsyncError, currentRetryCount: number) => {
         // Only retry on first attempt
         return currentRetryCount === 1;
       }
@@ -132,10 +130,10 @@ describe('retryStrategy with currentRetryCount parameter', () => {
     };
 
     const retryFn = createAsync(failingFunction, {
-      retryCount: 3,
-      retryStrategy: (error, currentRetryCount) => {
+      
+      retry: (error: AsyncError, currentRetryCount: number) => {
         // Always retry within the limit
-        return true;
+        return currentRetryCount <= 3;
       }
     });
 
@@ -161,7 +159,7 @@ describe('retryStrategy with currentRetryCount parameter', () => {
 
     const retryFn = createAsync(failingFunction, {
       // No retryCount specified, only retryStrategy
-      retryStrategy: (error, currentRetryCount) => {
+      retry: (error: AsyncError, currentRetryCount: number) => {
         // Retry first 3 attempts
         return currentRetryCount <= 3;
       }
@@ -213,7 +211,7 @@ describe('retryStrategy with currentRetryCount parameter', () => {
     // Test network error (should retry 2 times, succeed on 3rd call)
     const networkFn = createFailingFunction(2); // Fail first 2 calls, succeed on 3rd
     const networkRetryFn = createAsync(networkFn, {
-      retryStrategy: (error, currentRetryCount) => {
+      retry: (error: AsyncError, currentRetryCount: number) => {
         const errorType = (error as any).type;
         return errorType === 'network' && currentRetryCount <= 2;
       }
@@ -226,7 +224,7 @@ describe('retryStrategy with currentRetryCount parameter', () => {
     // Test server error (should retry 3 times, succeed on 4th call)
     const serverFn = createFailingFunction(3); // Fail first 3 calls, succeed on 4th
     const serverRetryFn = createAsync(serverFn, {
-      retryStrategy: (error, currentRetryCount) => {
+      retry: (error: AsyncError, currentRetryCount: number) => {
         const errorType = (error as any).type;
         return errorType === 'server' && currentRetryCount <= 3;
       }
@@ -239,9 +237,9 @@ describe('retryStrategy with currentRetryCount parameter', () => {
     // Test client error (should not retry)
     const clientFn = createFailingFunction(1); // Always fail
     const clientRetryFn = createAsync(clientFn, {
-      retryStrategy: (error) => {
+      retry: (error: AsyncError, currentRetryCount: number) => {
         const errorType = (error as any).type;
-        return errorType !== 'client'; // Don't retry client errors
+        return errorType !== 'client' && currentRetryCount <= 3; // Don't retry client errors, max 3 retries
       }
     });
 

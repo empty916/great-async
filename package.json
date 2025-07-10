@@ -10,41 +10,25 @@
       "import": "./dist/index.js",
       "require": "./dist/index.js"
     },
-    "./asyncController": {
-      "types": "./dist/asyncController.d.ts",
-      "import": "./dist/asyncController.js",
-      "require": "./dist/asyncController.js"
-    },
+
     "./create-async": {
       "types": "./dist/create-async.d.ts",
       "import": "./dist/create-async.js",
       "require": "./dist/create-async.js"
     },
-    "./dist/asyncController": {
-      "types": "./dist/asyncController.d.ts",
-      "import": "./dist/asyncController.js",
-      "require": "./dist/asyncController.js"
-    },
+
     "./dist/create-async": {
       "types": "./dist/create-async.d.ts",
       "import": "./dist/create-async.js",
       "require": "./dist/create-async.js"
     },
-    "./useAsyncFunction": {
-      "types": "./dist/useAsyncFunction.d.ts",
-      "import": "./dist/useAsyncFunction.js",
-      "require": "./dist/useAsyncFunction.js"
-    },
+
     "./use-async": {
       "types": "./dist/use-async.d.ts",
       "import": "./dist/use-async.js",
       "require": "./dist/use-async.js"
     },
-    "./dist/useAsyncFunction": {
-      "types": "./dist/useAsyncFunction.d.ts",
-      "import": "./dist/useAsyncFunction.js",
-      "require": "./dist/useAsyncFunction.js"
-    },
+
     "./dist/use-async": {
       "types": "./dist/use-async.d.ts",
       "import": "./dist/use-async.js",

@@ -19,8 +19,7 @@ test('staleWhileRevalidate - basic functionality', async () => {
 
     const App = () => {
         const { loading, data, backgroundUpdating, fn } = useAsync(getUserInfo, {
-            ttl: 1000, // 1 second cache
-            swr: true,
+            cache: { ttl: 1000, swr: true }, // 1 second cache
         });
 
         if (loading) {
@@ -76,8 +75,8 @@ test('staleWhileRevalidate - disabled behavior', async () => {
     const App = () => {
         const { loading, data, backgroundUpdating, fn } = useAsync(getUserInfo, {
             auto: false,
-            ttl: 1000,
-            swr: false, // Disabled
+            cache: { ttl: 1000, swr: false },
+            // swr: false, // Disabled
         });
 
         useEffect(() => {
@@ -100,16 +99,26 @@ test('staleWhileRevalidate - disabled behavior', async () => {
     };
 
     render(<App />);
-    
+
     // Initial load
     await waitFor(() => screen.getByRole('app'), { timeout: 5000 });
     expect(callCount).toBe(1);
+
+    await waitFor(() => screen.getByRole('app'), { timeout: 5000 });
+    // Get refresh button
+    const refreshButton = screen.getByRole('refresh');
+
+    await sleep(1000);
 
     // Manual refresh - should show loading and wait for new data
     await act(async () => {
         fireEvent.click(refreshButton);
     });
-    expect(screen.getByRole('loading')).toHaveTextContent('loading');
+
+    // Wait for loading state to appear
+    await waitFor(() => {
+        expect(screen.getByRole('loading')).toHaveTextContent('loading');
+    });
     
     // Wait for new data
     await waitFor(() => {

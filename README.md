@@ -21,6 +21,8 @@
 npm install great-async
 ```
 
+> **📢 Migrating from v1.x?** Check out our [Migration Guide](#-migration-guide) for smooth transition to v2.0's new grouped parameter structure.
+
 ## Core API - createAsync
 
 The heart of `great-async` is `createAsync` - a framework-agnostic function that enhances any async function with powerful features.
@@ -28,13 +30,9 @@ The heart of `great-async` is `createAsync` - a framework-agnostic function that
 ### Basic Usage
 
 ```typescript
-// Recommended: Use the modern API
+// Import the modern API
 import { createAsync } from 'great-async';
 import { createAsync } from 'great-async/create-async';
-
-// Legacy: Use the full name (deprecated)
-import { createAsyncController } from 'great-async';
-import { createAsyncController } from 'great-async/asyncController';
 
 // Enhance any async function
 const fetchUserData = async (userId: string) => {
@@ -43,8 +41,10 @@ const fetchUserData = async (userId: string) => {
 };
 
 const enhancedFetch = createAsync(fetchUserData, {
-  ttl: 60000, // Cache for 1 minute
-  swr: true,  // Enable stale-while-revalidate
+  cache: {
+    ttl: 60000, // Cache for 1 minute
+    swr: true,  // Enable stale-while-revalidate
+  }
 });
 
 // Use it like the original function
@@ -63,8 +63,10 @@ const fetchData = async (param: string) => {
 };
 
 const cachedAPI = createAsync(fetchData, {
-  ttl: 5 * 60 * 1000,     // Cache for 5 minutes
-  cacheCapacity: 100,      // LRU cache with max 100 items
+  cache: {
+    ttl: 5 * 60 * 1000,     // Cache for 5 minutes
+    capacity: 100,           // LRU cache with max 100 items
+  }
 });
 
 // First call: hits the API
@@ -86,12 +88,16 @@ const fetchUserProfile = async (userId: string) => {
 };
 
 const swrAPI = createAsync(fetchUserProfile, {
-  swr: true,
-  ttl: 60000,
-  onBackgroundUpdate: (freshData, error) => {
-    if (freshData) console.log('Data updated in background!');
-    if (error) console.error('Background update failed:', error);
+  cache: {
+    swr: true,
+    ttl: 60000,
   },
+  hooks: {
+    onBackgroundUpdate: (freshData, error) => {
+      if (freshData) console.log('Data updated in background!');
+      if (error) console.error('Background update failed:', error);
+    },
+  }
 });
 
 // First call: normal API request
@@ -114,7 +120,9 @@ const performSearch = async (query: string) => {
 };
 
 const searchAPI = createAsync(performSearch, {
-  takeLatest: true,
+  debounce: {
+    takeLatest: true,
+  }
 });
 
 // Make multiple calls in quick succession
@@ -140,10 +148,12 @@ const searchAPI = async (query: string) => {
   return response.json();
 };
 
-// PARAMETERS dimension: Debounce per unique parameters
+// PARAMETERS scope: Debounce per unique parameters
 const parameterDebounce = createAsync(searchAPI, {
-  debounceTime: 300,
-  debounceDimension: DIMENSIONS.PARAMETERS,
+  debounce: {
+    time: 300,
+    scope: SCOPE.PARAMETERS,
+  }
 });
 
 // Each unique parameter gets its own debounce timer
@@ -151,10 +161,12 @@ parameterDebounce('react');  // Timer 1: Will execute after 300ms
 parameterDebounce('vue');    // Timer 2: Will execute after 300ms (different parameter)
 parameterDebounce('react');  // Cancels Timer 1, starts new timer for 'react'
 
-// FUNCTION dimension: Debounce ignores parameters
+// FUNCTION scope: Debounce ignores parameters
 const functionDebounce = createAsync(searchAPI, {
-  debounceTime: 300,
-  debounceDimension: DIMENSIONS.FUNCTION,
+  debounce: {
+    time: 300,
+    scope: SCOPE.FUNCTION,
+  }
 });
 
 // All calls share the same debounce timer regardless of parameters
@@ -180,15 +192,15 @@ const fetchData = async (param: string) => {
 };
 
 const resilientAPI = createAsync(fetchData, {
-  retryStrategy: (error, currentRetryCount) => {
+  retry: (error, currentRetryCount) => {
     // Retry on server errors, but limit retries for specific errors
     if (error.status >= 500) {
       // For 503 Service Unavailable, only retry first 2 attempts
       if (error.status === 503) {
         return currentRetryCount <= 2;
       }
-      // For other server errors, retry all attempts
-      return true;
+      // For other server errors, retry up to 3 attempts
+      return currentRetryCount <= 3;
     }
     // Don't retry client errors
     return false;
@@ -213,7 +225,9 @@ const heavyOperation = async (param: string) => {
 };
 
 const singletonAPI = createAsync(heavyOperation, {
-  single: true,
+  single: {
+    enabled: true,
+  }
 });
 
 // Multiple calls during first request execution
@@ -231,21 +245,25 @@ console.log(result1 === result2 && result2 === result3); // true
 #### 🌐 Node.js API Client
 
 ```typescript
-import { createAsync, DIMENSIONS } from 'great-async/create-async';
+import { createAsync, SCOPE } from 'great-async/create-async';
 
 class APIClient {
   private cachedGet = createAsync(this.httpGet, {
-    ttl: 5 * 60 * 1000,        // 5 minute cache
-    cacheCapacity: 200,         // LRU cache
-    retryStrategy: (error, currentRetryCount) => {
+    cache: {
+      ttl: 5 * 60 * 1000,        // 5 minute cache
+      capacity: 200,              // LRU cache
+    },
+    retry: (error, currentRetryCount) => {
       return error.status >= 500 && currentRetryCount <= 3;
     },
   });
 
   private debouncedSearch = createAsync(this.httpGet, {
-    debounceTime: 300,
-    debounceDimension: DIMENSIONS.PARAMETERS, // Debounce per unique search query
-    takeLatest: true,      // Latest search wins, discard previous identical searches
+    debounce: {
+      time: 300,
+      scope: SCOPE.PARAMETERS, // Debounce per unique search query
+      takeLatest: true,      // Latest search wins, discard previous identical searches
+    }
   });
 
   async getUser(id: string) {
@@ -275,22 +293,27 @@ const createSearchController = (endpoint: string) => {
     },
     {
       // Performance optimizations
-      debounceTime: 300,           // Wait for user to stop typing
-      takeLatest: true,       // Latest search wins, discard previous identical searches
-      
-      // Caching strategy
-      swr: true,                   // Show cached results instantly
-      ttl: 2 * 60 * 1000,         // Cache for 2 minutes
-      cacheCapacity: 50,           // Keep last 50 searches
-      
-      // Reliability
-      retryCount: 2,
-      retryStrategy: (error) => error.status >= 500,
-      
-      // Callbacks
-      onBackgroundUpdate: (results, error) => {
-        if (error) console.warn('Search cache update failed:', error);
+      debounce: {
+        time: 300,                 // Wait for user to stop typing
+        takeLatest: true,          // Latest search wins, discard previous identical searches
       },
+
+      // Caching strategy
+      cache: {
+        swr: true,                 // Show cached results instantly
+        ttl: 2 * 60 * 1000,       // Cache for 2 minutes
+        capacity: 50,              // Keep last 50 searches
+      },
+
+      // Reliability
+      retry: (error, currentRetryCount) => error.status >= 500 && currentRetryCount <= 2,
+
+      // Callbacks
+      hooks: {
+        onBackgroundUpdate: (results, error) => {
+          if (error) console.warn('Search cache update failed:', error);
+        },
+      }
     }
   );
 };
@@ -310,13 +333,9 @@ For React applications, `great-async` provides `useAsync` hook that builds on to
 ### Basic React Usage
 
 ```tsx
-// Recommended: Use the modern API
+// Import the modern API
 import { useAsync } from 'great-async';
 import { useAsync } from 'great-async/use-async';
-
-// Legacy: Use the full name (deprecated)
-import { useAsyncFunction } from 'great-async';
-import { useAsyncFunction } from 'great-async/useAsyncFunction';
 
 function UserProfile({ userId }: { userId: string }) {
   const { data, loading, error } = useAsync(
@@ -546,11 +565,15 @@ function Dashboard() {
   const { data: user, backgroundUpdating } = useAsync(
     fetchCurrentUser,
     {
-      swr: true,
-      ttl: 2 * 60 * 1000, // 2 minutes
-      onBackgroundUpdate: (newData, error) => {
-        if (error) toast.error('Failed to sync user data');
+      cache: {
+        swr: true,
+        ttl: 2 * 60 * 1000, // 2 minutes
       },
+      hooks: {
+        onBackgroundUpdate: (newData, error) => {
+          if (error) toast.error('Failed to sync user data');
+        },
+      }
     }
   );
 
@@ -579,8 +602,10 @@ function SearchBox() {
     () => searchAPI(query),
     {
       deps: [query],
-      debounceTime: 300,     // Wait for user to stop typing
-      takeLatest: true, // Latest search wins, discard previous identical searches
+      debounce: {
+        time: 300,           // Wait for user to stop typing
+        takeLatest: true,    // Latest search wins, discard previous identical searches
+      },
       auto: query.length > 2, // Only search with 3+ characters
     }
   );
@@ -615,7 +640,9 @@ function UserProfile({ userId }: { userId: string }) {
     (id: string = userId) => fetchUserData(id), // Function with parameters and default value
     {
       deps: [userId],
-      ttl: 5 * 60 * 1000,
+      cache: {
+        ttl: 5 * 60 * 1000,
+      }
     }
   );
 
@@ -647,7 +674,9 @@ const fetchUserData = async (userId: string) => {
 };
 
 const userAPI = createAsync(fetchUserData, {
-  ttl: 5 * 60 * 1000,
+  cache: {
+    ttl: 5 * 60 * 1000,
+  }
 });
 
 // Use the API
@@ -778,74 +807,152 @@ enhancedFn.clearCache();
 enhancedFn.clearCache(param1, param2);
 ```
 
-#### Caching Options
+#### Cache Configuration (`cache`)
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `ttl` | `number` | `-1` | Cache duration in milliseconds |
-| `cacheCapacity` | `number` | `-1` | Maximum cache size (LRU) |
+| `capacity` | `number` | `-1` | Maximum cache size (LRU) |
+| `keyGenerator` | `function` | `JSON.stringify` | Custom cache key generator |
 | `swr` | `boolean` | `false` | Enable stale-while-revalidate |
 
-#### Performance Options
+#### Debounce Configuration (`debounce`)
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `debounceTime` | `number` | `-1` | Debounce delay in milliseconds |
-| `debounceDimension` | `DIMENSIONS` | `FUNCTION` | Debounce scope:<br/>• `FUNCTION`: Debounce ignores parameters<br/>• `PARAMETERS`: Debounce per unique parameters |
+| `time` | `number` | `-1` | Debounce delay in milliseconds |
+| `scope` | `SCOPE` | `FUNCTION` | Debounce scope:<br/>• `FUNCTION`: Debounce ignores parameters<br/>• `PARAMETERS`: Debounce per unique parameters |
 | `takeLatest` | `boolean` | `false` | Latest request wins - discard previous identical requests |
-| `single` | `boolean` | `false` | Share result of first ongoing request with all pending requests |
-| `singleDimension` | `DIMENSIONS` | `FUNCTION` | Single mode scope:<br/>• `FUNCTION`: Single mode ignores parameters<br/>• `PARAMETERS`: Single mode per unique parameters |
 
-#### Reliability Options
+#### Single Mode Configuration (`single`)
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `retryCount` | `number` | `0` | ⚠️ **Deprecated** - Number of retry attempts (use `retryStrategy` instead) |
-| `retryStrategy` | `function` | `() => true` | Custom retry logic `(error, currentRetryCount) => boolean` |
+| `enabled` | `boolean` | `false` | Share result of first ongoing request with all pending requests |
+| `scope` | `SCOPE` | `FUNCTION` | Single mode scope:<br/>• `FUNCTION`: Single mode ignores parameters<br/>• `PARAMETERS`: Single mode per unique parameters |
 
-##### Migration from retryCount to retryStrategy
+#### Retry Configuration
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `retry` | `function` | `undefined` | Custom retry logic `(error, currentRetryCount) => boolean` |
+
+#### Lifecycle Hooks (`hooks`)
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `beforeRun` | `function` | `undefined` | Called before function execution |
+| `onBackgroundUpdateStart` | `function` | `undefined` | Called when SWR background update starts |
+| `onBackgroundUpdate` | `function` | `undefined` | Called when SWR background update completes |
+
+##### Migration from 1.x to 2.0 Parameter Structure
 
 ```typescript
-// ❌ Deprecated: Using retryCount
+// ❌ Old 1.x flat structure (still supported with deprecation warnings)
 const oldWay = createAsync(apiCall, {
+  ttl: 60000,
+  cacheCapacity: 100,
+  debounceTime: 300,
+  debounceDimension: DIMENSIONS.PARAMETERS,
+  takeLatest: true,
+  single: true,
+  singleDimension: DIMENSIONS.FUNCTION,
   retryCount: 3,
-  retryStrategy: (error) => error.status >= 500
+  retryStrategy: (error) => error.status >= 500,
+  beforeRun: () => console.log('starting'),
+  swr: true,
+  onBackgroundUpdate: (data, error) => console.log('updated')
 });
 
-// ✅ Recommended: Using retryStrategy only (independent control)
+// ✅ New 2.0 grouped structure (recommended)
 const newWay = createAsync(apiCall, {
-  retryStrategy: (error, currentRetryCount) => {
+  cache: {
+    ttl: 60000,
+    capacity: 100,
+    swr: true
+  },
+  debounce: {
+    time: 300,
+    scope: SCOPE.PARAMETERS,
+    takeLatest: true
+  },
+  single: {
+    enabled: true,
+    scope: SCOPE.FUNCTION
+  },
+  retry: (error, currentRetryCount) => {
     return currentRetryCount <= 3 && error.status >= 500;
+  },
+  hooks: {
+    beforeRun: () => console.log('starting'),
+    onBackgroundUpdate: (data, error) => console.log('updated')
+  }
+});
+```
+
+##### useAsync Migration from 1.x to 2.0
+
+The `useAsync` hook follows the same parameter structure changes as `createAsync`:
+
+```tsx
+// ❌ Old 1.x flat structure (still supported with deprecation warnings)
+const { data, loading } = useAsync(fetchUser, {
+  deps: [userId],
+  ttl: 60000,
+  swr: true,
+  debounceTime: 300,
+  takeLatest: true,
+  retryCount: 3,
+  retryStrategy: (error) => error.status >= 500,
+  beforeRun: () => console.log('fetching user'),
+  onBackgroundUpdate: (data, error) => {
+    if (error) console.error('Background update failed:', error);
   }
 });
 
-// ✅ Advanced: Complex retry logic without retryCount
-const advancedWay = createAsync(apiCall, {
-  retryStrategy: (error, currentRetryCount) => {
-    // Network errors: retry first 2 attempts
-    if (error.type === 'network') {
-      return currentRetryCount <= 2;
+// ✅ New 2.0 grouped structure (recommended)
+const { data, loading } = useAsync(fetchUser, {
+  deps: [userId],
+  cache: {
+    ttl: 60000,
+    swr: true
+  },
+  debounce: {
+    time: 300,
+    takeLatest: true
+  },
+  retry: (error, currentRetryCount) => {
+    return currentRetryCount <= 3 && error.status >= 500;
+  },
+  hooks: {
+    beforeRun: () => console.log('fetching user'),
+    onBackgroundUpdate: (data, error) => {
+      if (error) console.error('Background update failed:', error);
     }
-
-    // Rate limiting: retry with exponential backoff
-    if (error.status === 429) {
-      return currentRetryCount <= 5;
-    }
-
-    // Server errors: retry first 3 attempts
-    if (error.status >= 500) {
-      return currentRetryCount <= 3;
-    }
-
-    // Don't retry client errors
-    return false;
   }
+});
+```
+
+**Key Changes for useAsync:**
+- All `createAsync` parameter changes apply to `useAsync`
+- React-specific options (`deps`, `auto`, `loadingId`) remain unchanged
+- `manual` option was removed (use `auto: false` instead)
+
+```tsx
+// ❌ Old 1.x manual option
+const { data, fn } = useAsync(fetchData, {
+  manual: true,  // Deprecated
+  deps: [id]
+});
+
+// ✅ New 2.0 auto option
+const { data, fn } = useAsync(fetchData, {
+  auto: false,   // Modern equivalent
+  deps: [id]
 });
 ```
 
 ##### Advanced Retry Strategy Examples
 
 ```typescript
-// Example 1: Independent retry control (no retryCount needed)
+// Example 1: Smart retry with different strategies per error type
 const smartRetry = createAsync(apiCall, {
-  retryStrategy: (error, currentRetryCount) => {
+  retry: (error, currentRetryCount) => {
     // Don't retry client errors (4xx)
     if (error.status >= 400 && error.status < 500) {
       return false;
@@ -870,9 +977,9 @@ const smartRetry = createAsync(apiCall, {
   }
 });
 
-// Example 2: Error-type based independent retry
+// Example 2: Error-type based retry
 const typeBasedRetry = createAsync(fetchData, {
-  retryStrategy: (error, currentRetryCount) => {
+  retry: (error, currentRetryCount) => {
     // Critical operations: retry up to 5 times
     if (error.critical) {
       return currentRetryCount <= 5;
@@ -883,12 +990,20 @@ const typeBasedRetry = createAsync(fetchData, {
   }
 });
 
-// Example 3: Backward compatible (with retryCount)
-const legacyRetry = createAsync(fetchData, {
-  retryCount: 3,
-  retryStrategy: (error) => {
-    // Old style - still works
-    return error.status >= 500;
+// Example 3: Combined with other features
+const comprehensiveAPI = createAsync(fetchData, {
+  cache: {
+    ttl: 5 * 60 * 1000,
+    swr: true
+  },
+  retry: (error, currentRetryCount) => {
+    return error.status >= 500 && currentRetryCount <= 3;
+  },
+  hooks: {
+    beforeRun: () => console.log('API call starting'),
+    onBackgroundUpdate: (data, error) => {
+      if (error) console.error('Background update failed:', error);
+    }
   }
 });
 
@@ -907,7 +1022,7 @@ const noRetry = createAsync(fetchData, {
 
 ### useAsync(asyncFn, options)
 
-Extends `createAsync` options with React-specific features:
+Extends `createAsync` options with React-specific features. **All `createAsync` options are supported** (cache, debounce, single, retry, hooks).
 
 #### React-Specific Options
 | Option | Type | Default | Description |
@@ -915,6 +1030,16 @@ Extends `createAsync` options with React-specific features:
 | `auto` | `boolean \| 'deps-only'` | `true` | Control auto-execution behavior:<br/>• `true`: Auto-call on mount and deps change<br/>• `false`: Manual execution only<br/>• `'deps-only'`: Auto-call only when deps change |
 | `deps` | `Array` | `[]` | Re-run when dependencies change |
 | `loadingId` | `string` | `''` | Share loading state across components |
+
+#### Inherited Options from createAsync
+All grouped options from `createAsync` are supported:
+- **`cache`**: `{ ttl, capacity, keyGenerator, swr }`
+- **`debounce`**: `{ time, scope, takeLatest }`
+- **`single`**: `{ enabled, scope }`
+- **`retry`**: `(error, currentRetryCount) => boolean`
+- **`hooks`**: `{ beforeRun, onBackgroundUpdateStart, onBackgroundUpdate }`
+
+See [createAsync API reference](#cache-configuration-cache) for detailed options.
 
 #### Return Values
 | Property | Type | Description |
@@ -935,15 +1060,9 @@ Starting from version 1.0.7-beta10, you can import individual modules. Multiple 
 import { createAsync } from 'great-async/create-async';
 import { useAsync } from 'great-async/use-async';
 
-// Legacy: Use full API names (deprecated)
-import { createAsyncController } from 'great-async/asyncController';
-import { useAsyncFunction } from 'great-async/useAsyncFunction';
-
 // Alternative: direct dist imports for better bundler compatibility
 import { createAsync } from 'great-async/dist/create-async';
 import { useAsync } from 'great-async/dist/use-async';
-import { createAsyncController } from 'great-async/dist/asyncController';
-import { useAsyncFunction } from 'great-async/dist/useAsyncFunction';
 
 // Utility modules (kebab-case)
 import { createTakeLatestPromise } from 'great-async/take-latest-promise';
@@ -1030,10 +1149,14 @@ async function fetchUserData(userId: string) {
 
 // Enhanced function with caching, debouncing, retry - SAME SIGNATURE!
 const enhancedFetchUser = createAsync(fetchUserData, {
-  ttl: 5 * 60 * 1000,
-  debounceTime: 300,
-  retryCount: 3,
-  swr: true,
+  cache: {
+    ttl: 5 * 60 * 1000,
+    swr: true,
+  },
+  debounce: {
+    time: 300,
+  },
+  retry: (error, currentRetryCount) => currentRetryCount <= 3,
 });
 
 // Use exactly like the original function
@@ -1087,8 +1210,10 @@ const getUserData = async (userId: string) => {
 
 // great-async - Framework Agnostic
 const fetchUser = createAsync(getUserData, {
-  ttl: 5 * 60 * 1000,
-  swr: true,
+  cache: {
+    ttl: 5 * 60 * 1000,
+    swr: true,
+  }
 });
 
 // React usage with manual control
@@ -1139,11 +1264,15 @@ const fetchUserProfile = async (userId: string) => {
 
 // great-async - Unique Features
 const searchAPI = createAsync(performSearch, {
-  debounceTime: 300,
-  debounceDimension: DIMENSIONS.PARAMETERS, // Per-parameter debouncing
-  takeLatest: true, // Latest request wins
-  swr: true,
-  retryStrategy: (error, currentRetryCount) => {
+  debounce: {
+    time: 300,
+    scope: SCOPE.PARAMETERS, // Per-parameter debouncing
+    takeLatest: true, // Latest request wins
+  },
+  cache: {
+    swr: true,
+  },
+  retry: (error, currentRetryCount) => {
     return error.status >= 500 && currentRetryCount <= 3;
   },
 });
@@ -1186,8 +1315,10 @@ const { data, error, loading, fn: fetchUserDataProxy } = useAsync(
   (id: string = userId) => fetchUserData(id),
   {
     deps: [userId],
-    ttl: 30000,
-    swr: true,
+    cache: {
+      ttl: 30000,
+      swr: true,
+    }
   }
 );
 
@@ -1219,8 +1350,10 @@ const { data, loading, error, fn: fetchPostsProxy } = useAsync(
   (params: { page: number } = { page }) => fetchPosts(params),
   {
     deps: [page],
-    ttl: 5 * 60 * 1000,
-    swr: true,
+    cache: {
+      ttl: 5 * 60 * 1000,
+      swr: true,
+    }
   }
 );
 
@@ -1253,6 +1386,42 @@ const handleRefreshWithNewPage = () => fetchPostsProxy({ page: page + 1 }); // �
 
 While other libraries excel in specific areas (TanStack Query's DevTools, SWR's simplicity, RTK Query's Redux integration), **great-async** provides the best balance of features, performance, and flexibility for most use cases.
 
+## 🚨 Breaking Changes in v2.0
+
+### Removed APIs
+
+The following deprecated APIs have been **removed** in v2.0:
+
+#### `createAsyncController` → `createAsync`
+```typescript
+// ❌ Removed in v2.0
+import { createAsyncController } from 'great-async';
+import { createAsyncController } from 'great-async/asyncController';
+
+// ✅ Use instead
+import { createAsync } from 'great-async';
+import { createAsync } from 'great-async/create-async';
+```
+
+#### `useAsyncFunction` → `useAsync`
+```typescript
+// ❌ Removed in v2.0
+import { useAsyncFunction } from 'great-async';
+import { useAsyncFunction } from 'great-async/useAsyncFunction';
+
+// ✅ Use instead
+import { useAsync } from 'great-async';
+import { useAsync } from 'great-async/use-async';
+```
+
+**Why were these removed?**
+- **Naming Consistency**: `createAsync` and `useAsync` are more concise and follow modern naming conventions
+- **Reduced Bundle Size**: Eliminates duplicate code and aliases
+- **Cleaner API Surface**: Focuses on the primary, well-documented APIs
+- **Better Developer Experience**: Less confusion about which API to use
+
+**Migration is simple**: Just replace the import and function names. All functionality remains identical.
+
 ## Migration Guide
 
 ### From other libraries
@@ -1263,14 +1432,14 @@ While other libraries excel in specific areas (TanStack Query's DevTools, SWR's 
 + import { useAsync } from 'great-async'
 
 - const { data, error } = useSWR('/api/user', fetcher)
-+ const { data, error } = useAsync(fetchUser, { swr: true })
++ const { data, error } = useAsync(fetchUser, { cache: { swr: true } })
 
 // From React Query
 - import { useQuery } from 'react-query'
 + import { useAsync } from 'great-async'
 
 - const { data, isLoading } = useQuery('user', fetchUser)
-+ const { data, loading } = useAsync(fetchUser, { ttl: 300000 })
++ const { data, loading } = useAsync(fetchUser, { cache: { ttl: 300000 } })
 ```
 
 ## Best Practices

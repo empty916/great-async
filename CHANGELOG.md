@@ -2,13 +2,96 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.0] - 2024-XX-XX
+
+### 🚨 BREAKING CHANGES
+
+#### Removed Deprecated APIs
+- **Removed `createAsyncController`**: Use `createAsync` instead
+- **Removed `useAsyncFunction`**: Use `useAsync` instead
+- **Removed package.json exports**: `/asyncController` and `/useAsyncFunction` paths no longer available
+
+#### Parameter Structure Changes
+- **New grouped parameter structure**: Options are now organized into logical groups (`cache`, `debounce`, `single`, `retry`, `hooks`)
+- **Legacy flat structure still supported**: v1.x parameter format works with deprecation warnings
+- **Simplified retry logic**: `retryCount` + `retryStrategy` → single `retry` function
+
+### ✨ NEW FEATURES
+
+#### Modern Parameter Structure
+- **`cache`**: `{ ttl, capacity, keyGenerator, swr }`
+- **`debounce`**: `{ time, scope, takeLatest }`
+- **`single`**: `{ enabled, scope }`
+- **`retry`**: `(error, currentRetryCount) => boolean`
+- **`hooks`**: `{ beforeRun, onBackgroundUpdateStart, onBackgroundUpdate }`
+
+#### Enhanced Type Safety
+- **Function overloads**: Separate types for modern vs legacy parameter structures
+- **Automatic conversion**: Legacy parameters automatically converted to modern structure
+- **Better IntelliSense**: Improved TypeScript autocomplete and error messages
+
+#### Improved Naming
+- **`DIMENSIONS` → `SCOPE`**: More semantic constant naming
+- **`cacheCapacity` → `capacity`**: Consistent naming within cache options
+- **`genKeyByParams` → `keyGenerator`**: More descriptive property names
+
+### 🔧 IMPROVEMENTS
+
+#### Developer Experience
+- **Comprehensive migration guide**: Detailed examples for upgrading from v1.x
+- **Backward compatibility**: All v1.x code continues to work
+- **Better documentation**: Updated examples use modern parameter structure
+- **Cleaner API surface**: Focus on primary APIs without deprecated aliases
+
+#### Performance
+- **Reduced bundle size**: Eliminated duplicate code from deprecated APIs
+- **Better tree shaking**: Cleaner exports improve dead code elimination
+
+### 📚 DOCUMENTATION
+
+#### Updated Examples
+- All README examples use modern grouped parameter structure
+- Added comprehensive migration guide with before/after comparisons
+- Updated API reference with grouped parameter documentation
+- Added breaking changes section with clear migration paths
+
+### 🧪 TESTING
+
+#### Enhanced Test Coverage
+- Added backward compatibility tests
+- Parameter conversion tests
+- Type safety validation tests
+- Migration scenario tests
+
+### Migration Guide
+
+```typescript
+// ❌ v1.x (removed in v2.0)
+import { createAsyncController, useAsyncFunction } from 'great-async';
+
+const api = createAsyncController(fetchData, {
+  ttl: 60000,
+  debounceTime: 300,
+  retryCount: 3
+});
+
+// ✅ v2.0 (use these instead)
+import { createAsync, useAsync } from 'great-async';
+
+const api = createAsync(fetchData, {
+  cache: { ttl: 60000 },
+  debounce: { time: 300 },
+  retry: (error, count) => count <= 3
+});
+```
+
 ## [1.0.7-beta10] - 2025-01-08
 
 ### Added
 - **Simplified API Names**: Added concise aliases for better developer experience
-  - `createAsync` - Simplified alias for `createAsyncController`
-  - `useAsync` - Simplified alias for `useAsyncFunction`
-  - Both new and original APIs are fully compatible and can be used interchangeably
+  - `createAsync` - Modern API (replaces `createAsyncController` in v2.0)
+  - `useAsync` - Modern API (replaces `useAsyncFunction` in v2.0)
+  - Both new and original APIs were fully compatible in v1.x
   - New dedicated files: `createAsync.ts` and `useAsync.ts`
   - Full subpath import support for new APIs
 
@@ -41,15 +124,10 @@ All notable changes to this project will be documented in this file.
   ```
 - **Import Flexibility**: Multiple ways to import the same functionality
   ```typescript
-  // Concise (recommended)
+  // Modern API (v2.0+)
   import { createAsync, useAsync } from 'great-async';
   import { createAsync } from 'great-async/create-async';
   import { useAsync } from 'great-async/use-async';
-
-  // Original (still supported)
-  import { createAsyncController, useAsyncFunction } from 'great-async';
-  import { createAsyncController } from 'great-async/asyncController';
-  import { useAsyncFunction } from 'great-async/useAsyncFunction';
   ```
 
 ### Refactored
@@ -99,13 +177,12 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 - **TypeScript Module Resolution**: Fixed TypeScript import errors for subpath imports in UMI and other frameworks
   - Added root-level `.d.ts` and `.js` files for all modules to support proper TypeScript module resolution
-  - Now `import { createAsyncController } from 'great-async/asyncController'` works correctly in TypeScript
   - Improved compatibility with different bundlers and TypeScript configurations
 
 ### Added
 - Root-level module files for better TypeScript support:
-  - `asyncController.js` and `asyncController.d.ts`
-  - `useAsyncFunction.js` and `useAsyncFunction.d.ts`
+  - `create-async.js` and `create-async.d.ts`
+  - `use-async.js` and `use-async.d.ts`
   - Similar files for all other modules
 
 ## [1.0.7-beta10] - 2025-01-08
