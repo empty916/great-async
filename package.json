@@ -50,25 +50,15 @@
       "import": "./dist/use-async.js",
       "require": "./dist/use-async.js"
     },
-    "./shared-loading-state-manager": {
-      "types": "./dist/shared-loading-state-manager.d.ts",
-      "import": "./dist/shared-loading-state-manager.js",
-      "require": "./dist/shared-loading-state-manager.js"
+    "./share-loading": {
+      "types": "./dist/share-loading.d.ts",
+      "import": "./dist/share-loading.js",
+      "require": "./dist/share-loading.js"
     },
-    "./dist/shared-loading-state-manager": {
-      "types": "./dist/shared-loading-state-manager.d.ts",
-      "import": "./dist/shared-loading-state-manager.js",
-      "require": "./dist/shared-loading-state-manager.js"
-    },
-    "./promise-debounce": {
-      "types": "./dist/promise-debounce.d.ts",
-      "import": "./dist/promise-debounce.js",
-      "require": "./dist/promise-debounce.js"
-    },
-    "./dist/promise-debounce": {
-      "types": "./dist/promise-debounce.d.ts",
-      "import": "./dist/promise-debounce.js",
-      "require": "./dist/promise-debounce.js"
+    "./dist/share-loading": {
+      "types": "./dist/share-loading.d.ts",
+      "import": "./dist/share-loading.js",
+      "require": "./dist/share-loading.js"
     }
   },
   "scripts": {

@@ -4,7 +4,7 @@ import { useSyncExternalStore } from "react";
 type LoadingStateCallback = () => void;
 type LoadingId = string;
 
-export class SharedLoadingStateManager {
+export class ShareLoading {
   private values = new Map<LoadingId, number>();
   private listeners = new Map<LoadingId, LoadingStateCallback[]>();
   
@@ -121,15 +121,15 @@ export class SharedLoadingStateManager {
   }
 }
 
-export const sharedLoadingStateManager = new SharedLoadingStateManager();
+export const shareLoading = new ShareLoading();
 
 
 export const useLoadingState = (loadingId: string) => {
 
   const loadingState = useSyncExternalStore(
-    cb => sharedLoadingStateManager.subscribe(loadingId, cb),
-    () => sharedLoadingStateManager.isLoading(loadingId),
-    () => sharedLoadingStateManager.isLoading(loadingId),
+    cb => shareLoading.subscribe(loadingId, cb),
+    () => shareLoading.isLoading(loadingId),
+    () => shareLoading.isLoading(loadingId),
   );
 
   return loadingState

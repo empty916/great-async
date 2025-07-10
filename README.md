@@ -450,13 +450,12 @@ function CreateUser() {
 
 ### React-Specific Features
 
-#### 📱 Shared Loading States
+#### 📱 Share Loading States
 
 Share loading states across multiple components using the same `loadingId`:
 
 ```tsx
-import { useAsync } from 'great-async/use-async';
-import { useLoadingState } from 'great-async/shared-loading-state-manager';
+import { useAsync, useLoadingState } from 'great-async';
 
 // Define the API functions
 const fetchUser = async () => {
@@ -948,7 +947,7 @@ import { useAsyncFunction } from 'great-async/dist/useAsyncFunction';
 
 // Utility modules (kebab-case)
 import { createTakeLatestPromise } from 'great-async/take-latest-promise';
-import { sharedLoadingStateManager } from 'great-async/shared-loading-state-manager';
+import { shareLoading } from 'great-async/share-loading';
 ```
 
 ### TypeScript Support
@@ -973,7 +972,7 @@ Starting from version 1.0.7-beta10, TypeScript module resolution is fully suppor
 | **Offline Support** | ✅ Cache-based | ✅ Advanced | ✅ Basic | ✅ Basic | ✅ Advanced |
 | **DevTools** | ❌ No | ✅ Excellent | ❌ No | ✅ Redux | ✅ Excellent |
 | **Mutations** | ✅ Via Controller | ✅ Built-in | ✅ Via mutate | ✅ Built-in | ✅ Built-in |
-| **Shared Loading** | ✅ Unique | ❌ No | ❌ No | ❌ No | ❌ No |
+| **Share Loading** | ✅ Unique | ❌ No | ❌ No | ❌ No | ❌ No |
 | **Auto Modes** | ✅ 3 modes | ✅ Manual | ✅ Manual | ✅ Manual | ✅ Manual |
 | **Function Enhancement** | ✅ Transparent | ❌ No | ❌ No | ❌ No | ❌ No |
 | **Manual Execution** | ✅ Simple `fn()` | 🟡 `refetch()` | 🟡 `mutate()` | 🟡 Via endpoints | 🟡 `refetch()` |
@@ -986,7 +985,7 @@ Starting from version 1.0.7-beta10, TypeScript module resolution is fully suppor
 - ✅ You need **gradual migration** without breaking existing code
 - ✅ You want **intuitive manual execution** with `fn()` that preserves function signature
 - ✅ You want **advanced debouncing** with parameter/function dimensions
-- ✅ You need **shared loading states** across components
+- ✅ You need **share loading states** across components
 - ✅ You prefer **small bundle size** with comprehensive features
 - ✅ You want **built-in single mode** to prevent duplicate requests
 - ✅ You need **flexible auto-execution** modes (`true`, `false`, `'deps-only'`)
@@ -1247,7 +1246,7 @@ const handleRefreshWithNewPage = () => fetchPostsProxy({ page: page + 1 }); // �
 1. **Framework Agnostic**: Works everywhere (React, Vue, Node.js, vanilla JS)
 2. **Transparent Function Enhancement**: Enhance functions without changing their API
 3. **Intuitive Manual Execution**: `fn()` preserves original function signature and behavior
-4. **Unique Features**: Advanced debouncing, shared loading states, single mode
+4. **Unique Features**: Advanced debouncing, share loading states, single mode
 5. **Small Bundle**: Comprehensive features in a compact package
 6. **Simple API**: Easy to learn and use
 7. **Flexible**: Multiple auto-execution modes and caching strategies

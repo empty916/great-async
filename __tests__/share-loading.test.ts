@@ -1,10 +1,10 @@
-import { SharedLoadingStateManager } from '../src';
+import { ShareLoading } from '../src';
 
-describe('SharedLoadingStateManager', () => {
-  let manager: SharedLoadingStateManager;
+describe('ShareLoading', () => {
+  let manager: ShareLoading;
 
   beforeEach(() => {
-    manager = new SharedLoadingStateManager();
+    manager = new ShareLoading();
   });
 
   describe('Basic functionality', () => {

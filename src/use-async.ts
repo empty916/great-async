@@ -13,7 +13,7 @@ import {
 } from "react";
 import type { PickPromiseType, PromiseFunction, AsyncError } from "./common";
 import { shallowEqual } from "./common";
-import { sharedLoadingStateManager, useLoadingState } from "./shared-loading-state-manager";
+import { shareLoading, useLoadingState } from "./share-loading";
 
 export interface AsyncFunctionState<T> {
   loading: boolean;
@@ -187,10 +187,10 @@ export const useAsync = <F extends PromiseFunction>(
   }
 
   if (!stateRef.current.inited && loadingId) {
-    sharedLoadingStateManager.init(loadingId);
+    shareLoading.init(loadingId);
     stateRef.current.inited = true;
     if(asyncFunctionState.loading) {
-      sharedLoadingStateManager.increment(loadingId);
+      shareLoading.increment(loadingId);
       stateRef.current.hasIncremented = true;
     }
   }
@@ -199,16 +199,16 @@ export const useAsync = <F extends PromiseFunction>(
     if (!loadingId) return; // Skip shared state management if no loadingId
 
     if (asyncFunctionState.loading && !stateRef.current.hasIncremented) {
-      sharedLoadingStateManager.increment(loadingId); // Only increment when needed
+      shareLoading.increment(loadingId); // Only increment when needed
       stateRef.current.hasIncremented = true;
     } else if (!asyncFunctionState.loading && stateRef.current.hasIncremented) {
-      sharedLoadingStateManager.decrement(loadingId); // Correctly handle state change
+      shareLoading.decrement(loadingId); // Correctly handle state change
       stateRef.current.hasIncremented = false;
     }
 
     return () => {
       if (stateRef.current.hasIncremented) {
-        sharedLoadingStateManager.decrement(loadingId); // Cleanup on unmount
+        shareLoading.decrement(loadingId); // Cleanup on unmount
         stateRef.current.hasIncremented = false;
       }
     }
@@ -360,5 +360,5 @@ export const useAsync = <F extends PromiseFunction>(
   } as UseAsyncReturn<F>;
 };
 
-useAsync.showLoading = (loadingId: string) => sharedLoadingStateManager.increment(loadingId);
-useAsync.hideLoading = (loadingId: string) => sharedLoadingStateManager.decrement(loadingId);
+useAsync.showLoading = (loadingId: string) => shareLoading.increment(loadingId);
+useAsync.hideLoading = (loadingId: string) => shareLoading.decrement(loadingId);

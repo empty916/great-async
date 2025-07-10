@@ -3,7 +3,7 @@ import { useAsync } from '../src';
 import '@testing-library/jest-dom/extend-expect';
 import { fireEvent, render, screen, waitFor, act } from '@testing-library/react';
 import { useEffect, useState } from 'react';
-import { sharedLoadingStateManager } from '../src/shared-loading-state-manager';
+import { shareLoading } from '../src/share-loading';
 
 
 describe('useAsync', () => {
@@ -86,12 +86,12 @@ test('should share loading state with same loadingId', async () => {
             <App2 />
         </>
     ));
-    expect(sharedLoadingStateManager.isLoading('app')).toBe(true);
+    expect(shareLoading.isLoading('app')).toBe(true);
     expect(screen.getByRole('loading')).toHaveTextContent('loading');
     expect(screen.getByRole('loading2')).toHaveTextContent('loading2');
     await waitFor(() => screen.getByRole('app'));
 
-    expect(sharedLoadingStateManager.isLoading('app')).toBe(false);
+    expect(shareLoading.isLoading('app')).toBe(false);
     expect(screen.getByRole('app')).toHaveTextContent('xxx');
     expect(screen.getByRole('app')).toHaveTextContent('tom');
     expect(screen.getByRole('app')).toHaveTextContent('10');
@@ -106,7 +106,7 @@ test('should share loading state with same loadingId', async () => {
     });
     await waitFor(() => screen.getByRole('loading'));
 
-    expect(sharedLoadingStateManager.isLoading('app')).toBe(true);
+    expect(shareLoading.isLoading('app')).toBe(true);
     expect(screen.getByRole('loading')).toHaveTextContent('loading');
     expect(screen.getByRole('loading2')).toHaveTextContent('loading2');
     act(() => {
@@ -115,7 +115,7 @@ test('should share loading state with same loadingId', async () => {
 
     await waitFor(() => screen.getByRole('app'));
 
-    expect(sharedLoadingStateManager.isLoading('app')).toBe(false);
+    expect(shareLoading.isLoading('app')).toBe(false);
     expect(screen.getByRole('app')).toHaveTextContent('xxx');
     expect(screen.getByRole('app')).toHaveTextContent('tom');
     expect(screen.getByRole('app')).toHaveTextContent('10');
