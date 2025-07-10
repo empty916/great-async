@@ -1,6 +1,6 @@
 {
   "name": "great-async",
-  "version": "1.0.7-beta13",
+  "version": "2.0.0-beta1",
   "description": "make async great again",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -10,25 +10,21 @@
       "import": "./dist/index.js",
       "require": "./dist/index.js"
     },
-
     "./create-async": {
       "types": "./dist/create-async.d.ts",
       "import": "./dist/create-async.js",
       "require": "./dist/create-async.js"
     },
-
     "./dist/create-async": {
       "types": "./dist/create-async.d.ts",
       "import": "./dist/create-async.js",
       "require": "./dist/create-async.js"
     },
-
     "./use-async": {
       "types": "./dist/use-async.d.ts",
       "import": "./dist/use-async.js",
       "require": "./dist/use-async.js"
     },
-
     "./dist/use-async": {
       "types": "./dist/use-async.d.ts",
       "import": "./dist/use-async.js",
