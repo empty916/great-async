@@ -107,7 +107,7 @@ test('staleWhileRevalidate - disabled behavior', async () => {
 
     // Manual refresh - should show loading and wait for new data
     await act(async () => {
-        fireEvent.click(screen.getByRole('refresh'));
+        fireEvent.click(refreshButton);
     });
     expect(screen.getByRole('loading')).toHaveTextContent('loading');
     
