@@ -20,7 +20,7 @@
 import { useAsync } from 'great-async';
 
 const UserProfile = () => {
-  const { data, loading, backgroundUpdating } = useAsync(
+  const { data, pending, backgroundUpdating } = useAsync(
     fetchUserProfile,
     {
       cache: {
@@ -30,7 +30,7 @@ const UserProfile = () => {
     }
   );
 
-  if (loading) {
+  if (pending) {
     return <div>Loading...</div>;
   }
 
@@ -50,7 +50,7 @@ const UserProfile = () => {
 
 ```tsx
 const UserProfile = () => {
-  const { data, loading, backgroundUpdating } = useAsync(
+  const { data, pending, backgroundUpdating } = useAsync(
     fetchUserProfile,
     {
       cache: {
@@ -77,7 +77,7 @@ const UserProfile = () => {
 
 ```tsx
 const UserProfile = () => {
-  const { data, loading, backgroundUpdating, fn } = useAsync(
+  const { data, pending, backgroundUpdating, fn } = useAsync(
     fetchUserProfile,
     {
       auto: false,
@@ -189,7 +189,7 @@ const { data, backgroundUpdating } = useAsync(fetchData, {
 ### 4. Combine with Other Features
 
 ```tsx
-const { data, loading, backgroundUpdating } = useAsync(fetchData, {
+const { data, pending, backgroundUpdating } = useAsync(fetchData, {
   cache: {
     ttl: 5 * 60 * 1000,
     swr: true,

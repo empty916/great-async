@@ -16,6 +16,65 @@ All notable changes to this project will be documented in this file.
 - **Legacy flat structure still supported**: v1.x parameter format works with deprecation warnings
 - **Simplified retry logic**: `retryCount` + `retryStrategy` → single `retry` function
 
+#### Return Value Changes
+- **New `pending` property**: More semantically correct than `loading` for async operations
+- **Deprecated `loading` property**: Still available for backward compatibility but will be removed in v3.0.0
+- Both `pending` and `loading` return the same value in v2.0 for seamless migration
+
+```typescript
+// ✅ Recommended - New pending property
+const { data, pending, error } = useAsync(fetchUser);
+if (pending) return <div>Loading...</div>;
+
+// ⚠️ Deprecated - Still works but will be removed in v3.0.0
+const { data, loading, error } = useAsync(fetchUser);
+if (loading) return <div>Loading...</div>;
+```
+
+#### Parameter Changes
+- **New `pendingId` parameter**: More semantically correct than `loadingId` for shared state
+- **Deprecated `loadingId` parameter**: Still available for backward compatibility but will be removed in v3.0.0
+- **New static methods**: `useAsync.showPending()` and `useAsync.hidePending()`
+- **Deprecated static methods**: `useAsync.showLoading()` and `useAsync.hideLoading()`
+
+```typescript
+// ✅ Recommended - New pendingId parameter
+const { pending } = useAsync(fetchUser, { pendingId: 'user-data' });
+
+// ⚠️ Deprecated - Still works but will be removed in v3.0.0
+const { pending } = useAsync(fetchUser, { loadingId: 'user-data' });
+
+// ✅ Recommended - New static methods
+useAsync.showPending('user-data');
+useAsync.hidePending('user-data');
+
+// ⚠️ Deprecated - Still works but will be removed in v3.0.0
+useAsync.showLoading('user-data');
+useAsync.hideLoading('user-data');
+```
+
+#### Internal Module Changes
+- **New `share-pending` module**: Modern implementation with consistent naming
+- **Removed `share-loading` module**: Completely removed in favor of `share-pending`
+- **New classes and functions**: `SharePending`, `sharePending`, `usePendingState`
+- **Breaking change**: `ShareLoading` APIs are no longer available (clean v2.0 release)
+
+#### Package Exports Updates
+- **New exports**: Added `share-pending`, `take-latest-promise`, and `common` module exports
+- **Import paths**: All modules now support both direct and `/dist/` prefixed imports
+- **Tree-shaking**: Better support for individual module imports
+
+```typescript
+// ✅ New module exports available
+import { SharePending } from 'great-async/share-pending';
+import { takeLatestPromise } from 'great-async/take-latest-promise';
+import { LRU } from 'great-async/common';
+
+// ✅ Both import styles supported
+import { useAsync } from 'great-async/use-async';
+import { useAsync } from 'great-async/dist/use-async';
+```
+
 ### ✨ NEW FEATURES
 
 #### Modern Parameter Structure

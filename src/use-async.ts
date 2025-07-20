@@ -13,9 +13,13 @@ import {
 } from "react";
 import type { PickPromiseType, PromiseFunction, AsyncError } from "./common";
 import { shallowEqual } from "./common";
-import { shareLoading, useLoadingState } from "./share-loading";
+import { sharePending, usePendingState } from "./share-pending";
 
 export interface AsyncFunctionState<T> {
+  pending: boolean;
+  /**
+   * @deprecated Use pending instead. Will be removed in v3.0.0
+   */
   loading: boolean;
   error: AsyncError | null;
   data: T;
@@ -38,9 +42,9 @@ export interface UseAsyncOptions<F extends PromiseFunction>
    */
   auto?: boolean | 'deps-only';
   /**
-   * When using useAsync in different components and giving them the same loadingId, they will share the "loading" state.
+   * When using useAsync in different components and giving them the same pendingId, they will share the "pending" state.
    */
-  loadingId?: string;
+  pendingId?: string;
 }
 
 export type UseAsyncReturn<F extends PromiseFunction> =
@@ -50,9 +54,12 @@ export type UseAsyncReturn<F extends PromiseFunction> =
        */
       data: PickPromiseType<F> | null;
       /**
-       * promise's loading status \
-       * please use loading intead
-       * @deprecated
+       * promise's pending status (true when async operation is in progress)
+       */
+      pending: true;
+      /**
+       * promise's loading status
+       * @deprecated Use pending instead. Will be removed in v3.0.0
        */
       loading: true;
       /**
@@ -66,13 +73,13 @@ export type UseAsyncReturn<F extends PromiseFunction> =
       /**
        * * please use fn instead \
        * proxy of first parameter, usage is same as first parameter. \
-       * the difference is calling run will update loading state
+       * the difference is calling run will update pending state
        * @deprecated
        */
       run: F;
       /**
        * proxy of first parameter, usage is same as first parameter. \
-       * the difference is calling fn will update loading state
+       * the difference is calling fn will update pending state
        */
       fn: F;
       clearCache: ClearCache<F>;
@@ -80,7 +87,12 @@ export type UseAsyncReturn<F extends PromiseFunction> =
   | {
       data: PickPromiseType<F>;
       /**
+       * promise's pending status (false when async operation is complete)
+       */
+      pending: false;
+      /**
        * promise's loading status
+       * @deprecated Use pending instead. Will be removed in v3.0.0
        */
       loading: false;
       error: AsyncError | null;
@@ -91,13 +103,13 @@ export type UseAsyncReturn<F extends PromiseFunction> =
       /**
        * please use fn instead \
        * proxy of first parameter, usage is same as first parameter. \
-       * the difference is calling run will update loading state
+       * the difference is calling run will update pending state
        * @deprecated
        */
       run: F;
       /**
        * proxy of first parameter, usage is same as first parameter. \
-       * the difference is calling fn will update loading state
+       * the difference is calling fn will update pending state
        */
       fn: F;
       clearCache: ClearCache<F>;
@@ -109,17 +121,18 @@ export type UseAsyncReturn<F extends PromiseFunction> =
  *
  * @param asyncFn The async function to execute
  * @param options useAsync options
- * @returns Object containing data, loading, error, and control functions
+ * @returns Object containing data, pending, error, and control functions
  *
  * @example
  * ```typescript
  * import { useAsync } from 'great-async/use-async';
  *
  * function UserProfile({ userId }: { userId: string }) {
- *   const { data, loading, error } = useAsync(
+ *   const { data, pending, error } = useAsync(
  *     () => fetch(`/api/users/${userId}`).then(res => res.json()),
  *     {
  *       deps: [userId],
+ *       pendingId: 'user-profile', // Share pending state across components
  *       cache: {
  *         ttl: 5 * 60 * 1000,
  *         swr: true
@@ -127,7 +140,7 @@ export type UseAsyncReturn<F extends PromiseFunction> =
  *     }
  *   );
  *
- *   if (loading) return <div>Loading...</div>;
+ *   if (pending) return <div>Loading...</div>;
  *   if (error) return <div>Error: {error.message}</div>;
  *   return <div>User: {data?.name}</div>;
  * }
@@ -140,7 +153,7 @@ export const useAsync = <F extends PromiseFunction>(
   const {
     deps,
     auto = true,
-    loadingId,
+    pendingId,
     ...createAsyncOptions
   } = opts;
 
@@ -165,7 +178,8 @@ export const useAsync = <F extends PromiseFunction>(
   const [asyncFunctionState, setAsyncFunctionState] = useState<
     AsyncFunctionState<PickPromiseType<F> | null>
   >({
-    loading: auto === true,
+    pending: auto === true,
+    loading: auto === true, // Deprecated but kept for compatibility
     error: null,
     data: null,
   });
@@ -174,42 +188,42 @@ export const useAsync = <F extends PromiseFunction>(
   argsRef.current.asyncFn = asyncFn;
   argsRef.current.auto = auto;
   argsRef.current.deps = deps;
-  argsRef.current.loadingId = loadingId || '';
+  argsRef.current.loadingId = pendingId || '';
   argsRef.current.onBackgroundUpdate = onBackgroundUpdate;
 
   if (deps && !Array.isArray(deps)) {
     throw new Error("The deps must be an Array!");
   }
 
-  if (!stateRef.current.inited && loadingId) {
-    shareLoading.init(loadingId);
+  if (!stateRef.current.inited && pendingId) {
+    sharePending.init(pendingId);
     stateRef.current.inited = true;
-    if(asyncFunctionState.loading) {
-      shareLoading.increment(loadingId);
+    if(asyncFunctionState.pending) {
+      sharePending.increment(pendingId);
       stateRef.current.hasIncremented = true;
     }
   }
 
   useEffect(() => {
-    if (!loadingId) return; // Skip shared state management if no loadingId
+    if (!pendingId) return; // Skip shared state management if no pendingId
 
-    if (asyncFunctionState.loading && !stateRef.current.hasIncremented) {
-      shareLoading.increment(loadingId); // Only increment when needed
+    if (asyncFunctionState.pending && !stateRef.current.hasIncremented) {
+      sharePending.increment(pendingId); // Only increment when needed
       stateRef.current.hasIncremented = true;
-    } else if (!asyncFunctionState.loading && stateRef.current.hasIncremented) {
-      shareLoading.decrement(loadingId); // Correctly handle state change
+    } else if (!asyncFunctionState.pending && stateRef.current.hasIncremented) {
+      sharePending.decrement(pendingId); // Correctly handle state change
       stateRef.current.hasIncremented = false;
     }
 
     return () => {
       if (stateRef.current.hasIncremented) {
-        shareLoading.decrement(loadingId); // Cleanup on unmount
+        sharePending.decrement(pendingId); // Cleanup on unmount
         stateRef.current.hasIncremented = false;
       }
     }
-  }, [asyncFunctionState.loading, loadingId]);
+  }, [asyncFunctionState.pending, pendingId]);
 
-  const sharedLoadingState = useLoadingState(loadingId || '');
+  const sharedPendingState = usePendingState(pendingId || '');
 
   const fnProxy = useMemo(() => {
     const fn1 = (...args: Parameters<F>) =>
@@ -252,12 +266,13 @@ export const useAsync = <F extends PromiseFunction>(
           createAsyncOpts.hooks?.beforeRun
             ? () => {
                 setAsyncFunctionState((ov) => {
-                  if (ov.loading) {
+                  if (ov.pending) {
                     return ov;
                   }
                   return {
                     ...ov,
-                    loading: true,
+                    pending: true,
+                    loading: true, // Deprecated but kept for compatibility
                   };
                 });
                 createAsyncOpts.hooks?.beforeRun?.();
@@ -276,12 +291,13 @@ export const useAsync = <F extends PromiseFunction>(
 
         if ((createAsyncOpts.debounce?.time || -1) === -1) {
           setAsyncFunctionState((ov) => {
-            if (ov.loading) {
+            if (ov.pending) {
               return ov;
             }
             return {
               ...ov,
-              loading: true,
+              pending: true,
+              loading: true, // Deprecated but kept for compatibility
             };
           });
         }
@@ -289,11 +305,12 @@ export const useAsync = <F extends PromiseFunction>(
         try {
           const res = await fnProxy(...args);
           setAsyncFunctionState((ov) => {
-            if (!ov.loading && ov.error === null && ov.data === res) {
+            if (!ov.pending && ov.error === null && ov.data === res) {
               return ov;
             }
             return {
-              loading: false,
+              pending: false,
+              loading: false, // Deprecated but kept for compatibility
               error: null,
               data: res,
             };
@@ -301,12 +318,13 @@ export const useAsync = <F extends PromiseFunction>(
           return res;
         } catch (err) {
           setAsyncFunctionState((ov) => {
-            if (!ov.loading && ov.error === err && ov.data === null) {
+            if (!ov.pending && ov.error === err && ov.data === null) {
               return ov;
             }
             return {
               error: err,
-              loading: false,
+              pending: false,
+              loading: false, // Deprecated but kept for compatibility
               data: null,
             };
           });
@@ -353,11 +371,12 @@ export const useAsync = <F extends PromiseFunction>(
     runFn();
   }, [deps, runFn]);
 
-  const composedPendingState = asyncFunctionState.loading || sharedLoadingState;
+  const composedPendingState = asyncFunctionState.pending || sharedPendingState;
 
   return {
     data: asyncFunctionState.data,
-    loading: composedPendingState,
+    pending: composedPendingState,
+    loading: composedPendingState, // Deprecated but kept for compatibility
     error: asyncFunctionState.error,
     backgroundUpdating,
     run: manualRunFn,
@@ -366,5 +385,6 @@ export const useAsync = <F extends PromiseFunction>(
   } as UseAsyncReturn<F>;
 };
 
-useAsync.showLoading = (loadingId: string) => shareLoading.increment(loadingId);
-useAsync.hideLoading = (loadingId: string) => shareLoading.decrement(loadingId);
+// Static methods for manual pending state control
+useAsync.showPending = (pendingId: string) => sharePending.increment(pendingId);
+useAsync.hidePending = (pendingId: string) => sharePending.decrement(pendingId);

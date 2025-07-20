@@ -3,10 +3,64 @@ import { useAsync } from '../src';
 import '@testing-library/jest-dom/extend-expect';
 import { fireEvent, render, screen, waitFor, act } from '@testing-library/react';
 import { useEffect, useState } from 'react';
-import { shareLoading } from '../src/share-loading';
+import { sharePending } from '../src/share-pending';
 
 
 describe('useAsync', () => {
+  describe('Backward Compatibility', () => {
+    test('should support both pending and loading properties', async () => {
+      const getUserInfo = async () => {
+        await sleep(10);
+        return { name: 'John', age: 30 };
+      };
+
+      const App = () => {
+        const { pending, loading, data } = useAsync(getUserInfo);
+
+        // Both pending and loading should have the same value
+        expect(pending).toBe(loading);
+
+        if (pending) {
+          return <span role="loading">loading</span>;
+        }
+        return <span role="data">{data?.name}</span>;
+      };
+
+      const { getByRole } = render(<App />);
+
+      // Should show loading initially
+      expect(getByRole('loading')).toBeInTheDocument();
+
+      // Should show data after loading
+      await waitFor(() => {
+        expect(getByRole('data')).toBeInTheDocument();
+        expect(getByRole('data')).toHaveTextContent('John');
+      });
+    });
+
+    test('should support pendingId parameter', async () => {
+      const fetchData = async () => {
+        await sleep(10);
+        return 'test data';
+      };
+
+      // Test with pendingId
+      const AppWithPendingId = () => {
+        const { pending, data } = useAsync(fetchData, { pendingId: 'test-pending' });
+        if (pending) return <span role="pending">pending</span>;
+        return <span role="data-pending">{data}</span>;
+      };
+
+      const { getByRole: getByRolePending } = render(<AppWithPendingId />);
+
+      expect(getByRolePending('pending')).toBeInTheDocument();
+
+      await waitFor(() => {
+        expect(getByRolePending('data-pending')).toBeInTheDocument();
+      });
+    });
+  });
+
   describe('Basic functionality', () => {
     test('should load data successfully on mount', async () => {
     const getUserInfo = async () => {
@@ -40,7 +94,7 @@ describe('useAsync', () => {
 });
 
 
-test('should share loading state with same loadingId', async () => {
+test('should share pending state with same pendingId', async () => {
     const getUserInfo = async () => {
         await sleep(10);
         return {
@@ -51,10 +105,10 @@ test('should share loading state with same loadingId', async () => {
     };
 
     const App = () => {
-        const { loading, data } = useAsync(getUserInfo, {
-            loadingId: 'app',
+        const { pending, data } = useAsync(getUserInfo, {
+            pendingId: 'app',
         });
-        if (loading) {
+        if (pending) {
             return <span role="loading">loading</span>;
         }
         return (
@@ -66,10 +120,10 @@ test('should share loading state with same loadingId', async () => {
         );
     };
     const App2 = () => {
-        const { loading, data } = useAsync(getUserInfo, {
-            loadingId: 'app',
+        const { pending, data } = useAsync(getUserInfo, {
+            pendingId: 'app',
         });
-        if (loading) {
+        if (pending) {
             return <span role="loading2">loading2</span>;
         }
         return (
@@ -86,12 +140,12 @@ test('should share loading state with same loadingId', async () => {
             <App2 />
         </>
     ));
-    expect(shareLoading.isLoading('app')).toBe(true);
+    expect(sharePending.isPending('app')).toBe(true);
     expect(screen.getByRole('loading')).toHaveTextContent('loading');
     expect(screen.getByRole('loading2')).toHaveTextContent('loading2');
     await waitFor(() => screen.getByRole('app'));
 
-    expect(shareLoading.isLoading('app')).toBe(false);
+    expect(sharePending.isPending('app')).toBe(false);
     expect(screen.getByRole('app')).toHaveTextContent('xxx');
     expect(screen.getByRole('app')).toHaveTextContent('tom');
     expect(screen.getByRole('app')).toHaveTextContent('10');
@@ -102,20 +156,20 @@ test('should share loading state with same loadingId', async () => {
 
 
     act(() => {
-        useAsync.showLoading('app');
+        useAsync.showPending('app');
     });
     await waitFor(() => screen.getByRole('loading'));
 
-    expect(shareLoading.isLoading('app')).toBe(true);
+    expect(sharePending.isPending('app')).toBe(true);
     expect(screen.getByRole('loading')).toHaveTextContent('loading');
     expect(screen.getByRole('loading2')).toHaveTextContent('loading2');
     act(() => {
-        useAsync.hideLoading('app');
+        useAsync.hidePending('app');
     });
 
     await waitFor(() => screen.getByRole('app'));
 
-    expect(shareLoading.isLoading('app')).toBe(false);
+    expect(sharePending.isPending('app')).toBe(false);
     expect(screen.getByRole('app')).toHaveTextContent('xxx');
     expect(screen.getByRole('app')).toHaveTextContent('tom');
     expect(screen.getByRole('app')).toHaveTextContent('10');

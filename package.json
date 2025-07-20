@@ -1,7 +1,7 @@
 {
   "name": "great-async",
   "version": "2.0.0-beta1",
-  "description": "make async great again",
+  "description": "Framework-agnostic async utilities with React hooks, caching, SWR, debouncing, and more. Features modern 'pending' state for better semantics.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
@@ -29,16 +29,6 @@
       "types": "./dist/use-async.d.ts",
       "import": "./dist/use-async.js",
       "require": "./dist/use-async.js"
-    },
-    "./share-loading": {
-      "types": "./dist/share-loading.d.ts",
-      "import": "./dist/share-loading.js",
-      "require": "./dist/share-loading.js"
-    },
-    "./dist/share-loading": {
-      "types": "./dist/share-loading.d.ts",
-      "import": "./dist/share-loading.js",
-      "require": "./dist/share-loading.js"
     }
   },
   "scripts": {

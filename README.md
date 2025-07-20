@@ -21,6 +21,24 @@
 npm install great-async
 ```
 
+### Import Options
+
+```typescript
+// Main export (includes all APIs)
+import { useAsync, createAsync } from 'great-async';
+
+// Individual module imports (for tree-shaking)
+import { useAsync } from 'great-async/use-async';
+import { createAsync } from 'great-async/create-async';
+
+// Shared state management
+import { SharePending, sharePending, usePendingState } from 'great-async/share-pending';
+
+// Other utilities
+import { takeLatestPromise } from 'great-async/take-latest-promise';
+import { LRU } from 'great-async/common';
+```
+
 > **📢 Migrating from v1.x?** Check out our [Migration Guide](#-migration-guide) for smooth transition to v2.0's new grouped parameter structure.
 
 ## Core API - createAsync
@@ -338,12 +356,12 @@ import { useAsync } from 'great-async';
 import { useAsync } from 'great-async/use-async';
 
 function UserProfile({ userId }: { userId: string }) {
-  const { data, loading, error } = useAsync(
+  const { data, pending, error } = useAsync(
     () => fetch(`/api/users/${userId}`).then(res => res.json()),
     { deps: [userId] } // Re-run when userId changes
   );
 
-  if (loading) return <div>Loading...</div>;
+  if (pending) return <div>Loading...</div>;
   if (error) return <div>Error: {error.message}</div>;
   return <div>Hello, {data.name}!</div>;
 }
@@ -361,7 +379,7 @@ function UserDashboard({ userId }: { userId: string }) {
     return response.json();
   };
 
-  const { data, loading, error, fn: getUserDataProxy } = useAsync(
+  const { data, pending, error, fn: getUserDataProxy } = useAsync(
     () => getUserData(userId),
     {
       auto: false, // Don't auto-execute on mount
@@ -371,8 +389,8 @@ function UserDashboard({ userId }: { userId: string }) {
 
   return (
     <div>
-      <button onClick={() => getUserDataProxy()} disabled={loading}>
-        {loading ? 'Loading...' : 'Load User Data'}
+      <button onClick={() => getUserDataProxy()} disabled={pending}>
+        {pending ? 'Loading...' : 'Load User Data'}
       </button>
       
       {error && <div>Error: {error.message}</div>}
@@ -395,7 +413,7 @@ function SearchResults({ query }: { query: string }) {
     return response.json();
   };
 
-  const { data, loading, fn: searchAPIProxy } = useAsync(
+  const { data, pending, fn: searchAPIProxy } = useAsync(
     () => searchAPI(query),
     {
       auto: 'deps-only', // Only search when query changes, not on mount
@@ -410,8 +428,8 @@ function SearchResults({ query }: { query: string }) {
 
   return (
     <div>
-      <button onClick={handleManualSearch} disabled={loading}>
-        {loading ? 'Searching...' : 'Search Now'}
+      <button onClick={handleManualSearch} disabled={pending}>
+        {pending ? 'Searching...' : 'Search Now'}
       </button>
       {data?.map(item => <div key={item.id}>{item.title}</div>)}
     </div>
@@ -432,7 +450,7 @@ function CreateUser() {
     return response.json();
   };
   
-  const { data: newUser, loading, error, fn: createUserAPIProxy } = useAsync(
+  const { data: newUser, pending, error, fn: createUserAPIProxy } = useAsync(
     () => createUserAPI(formData),
     { auto: false } // Only execute when form is submitted
   );
@@ -458,8 +476,8 @@ function CreateUser() {
         onChange={(e) => setFormData(prev => ({...prev, email: e.target.value}))}
         placeholder="Email"
       />
-      <button type="submit" disabled={loading}>
-        {loading ? 'Creating...' : 'Create User'}
+      <button type="submit" disabled={pending}>
+        {pending ? 'Creating...' : 'Create User'}
       </button>
       {error && <div>Error: {error.message}</div>}
     </form>
@@ -487,22 +505,22 @@ const fetchUserAvatar = async () => {
   return response.json();
 };
 
-// Multiple components can share the same loading state
+// Multiple components can share the same pending state
 function UserProfile() {
-  const { data, loading } = useAsync(fetchUser, {
-    loadingId: 'user-data', // Shared loading identifier
+  const { data, pending } = useAsync(fetchUser, {
+    pendingId: 'user-data', // Shared pending identifier
   });
-  
-  if (loading) return <div>Profile loading...</div>;
+
+  if (pending) return <div>Profile loading...</div>;
   return <div>User: {data?.name}</div>;
 }
 
 function UserAvatar() {
-  const { data, loading } = useAsync(fetchUserAvatar, {
-    loadingId: 'user-data', // Same loadingId - shares loading state
+  const { data, pending } = useAsync(fetchUserAvatar, {
+    pendingId: 'user-data', // Same pendingId - shares pending state
   });
-  
-  if (loading) return <div>Avatar loading...</div>;
+
+  if (pending) return <div>Avatar loading...</div>;
   return <img src={data?.avatar} alt="User avatar" />;
 }
 
@@ -516,7 +534,7 @@ function GlobalLoadingIndicator() {
   );
 }
 
-// Usage: All components will show loading state when ANY of them is loading
+// Usage: All components will show loading state when ANY of them is pending
 function App() {
   return (
     <div>
@@ -533,20 +551,20 @@ You can also control shared loading states manually:
 ```tsx
 import { useAsync } from 'great-async/use-async';
 
-// Manual control of shared loading states
+// Manual control of shared pending states
 function SomeComponent() {
-  const handleStartLoading = () => {
-    useAsync.showLoading('user-data'); // Show loading for loadingId
+  const handleStartPending = () => {
+    useAsync.showPending('user-data'); // Show pending for pendingId
   };
 
-  const handleStopLoading = () => {
-    useAsync.hideLoading('user-data'); // Hide loading for loadingId
+  const handleStopPending = () => {
+    useAsync.hidePending('user-data'); // Hide pending for pendingId
   };
   
   return (
     <div>
-      <button onClick={handleStartLoading}>Start Loading</button>
-      <button onClick={handleStopLoading}>Stop Loading</button>
+      <button onClick={handleStartPending}>Start Pending</button>
+      <button onClick={handleStopPending}>Stop Pending</button>
     </div>
   );
 }
@@ -598,7 +616,7 @@ function SearchBox() {
     return response.json();
   };
   
-  const { data: results, loading } = useAsync(
+  const { data: results, pending } = useAsync(
     () => searchAPI(query),
     {
       deps: [query],
@@ -612,12 +630,12 @@ function SearchBox() {
 
   return (
     <div>
-      <input 
-        value={query} 
+      <input
+        value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Search..."
       />
-      {loading && <span>Searching...</span>}
+      {pending && <span>Searching...</span>}
       {results?.map(item => <div key={item.id}>{item.title}</div>)}
     </div>
   );
@@ -636,7 +654,7 @@ function UserProfile({ userId }: { userId: string }) {
     return response.json();
   };
   
-  const { data, loading, clearCache } = useAsync(
+  const { data, pending, clearCache } = useAsync(
     (id: string = userId) => fetchUserData(id), // Function with parameters and default value
     {
       deps: [userId],
@@ -762,7 +780,7 @@ function UserSettings({ userId }: { userId: string }) {
   };
   
   // Only auto-fetch when filters change, not on initial mount
-  const { data: settings, loading, fn: fetchUserSettingsProxy } = useAsync(
+  const { data: settings, pending, fn: fetchUserSettingsProxy } = useAsync(
     () => fetchUserSettings(userId, filters),
     {
       auto: 'deps-only',  // Don't auto-call on mount, only when deps change
@@ -773,11 +791,11 @@ function UserSettings({ userId }: { userId: string }) {
   return (
     <div>
       <button onClick={() => fetchUserSettingsProxy()}>Load Settings</button>
-      <FilterControls 
-        filters={filters} 
+      <FilterControls
+        filters={filters}
         onChange={setFilters} // Will trigger auto-fetch when changed
       />
-      {loading && <div>Loading...</div>}
+      {pending && <div>Loading...</div>}
       {settings && <SettingsPanel data={settings} />}
     </div>
   );
@@ -906,7 +924,7 @@ const { data, loading } = useAsync(fetchUser, {
 });
 
 // ✅ New 2.0 grouped structure (recommended)
-const { data, loading } = useAsync(fetchUser, {
+const { data, pending } = useAsync(fetchUser, {
   deps: [userId],
   cache: {
     ttl: 60000,
@@ -1029,7 +1047,8 @@ Extends `createAsync` options with React-specific features. **All `createAsync` 
 |--------|------|---------|-------------|
 | `auto` | `boolean \| 'deps-only'` | `true` | Control auto-execution behavior:<br/>• `true`: Auto-call on mount and deps change<br/>• `false`: Manual execution only<br/>• `'deps-only'`: Auto-call only when deps change |
 | `deps` | `Array` | `[]` | Re-run when dependencies change |
-| `loadingId` | `string` | `''` | Share loading state across components |
+| `pendingId` | `string` | `''` | Share pending state across components (recommended) |
+| `loadingId` | `string` | `''` | Share pending state across components (deprecated, use `pendingId`) |
 
 #### Inherited Options from createAsync
 All grouped options from `createAsync` are supported:
@@ -1045,7 +1064,8 @@ See [createAsync API reference](#cache-configuration-cache) for detailed options
 | Property | Type | Description |
 |----------|------|-------------|
 | `data` | `T \| null` | The result data |
-| `loading` | `boolean` | True during initial load |
+| `pending` | `boolean` | True during async operation (recommended) |
+| `loading` | `boolean` | True during async operation (deprecated, use `pending`) |
 | `error` | `any` | Error object if request fails |
 | `backgroundUpdating` | `boolean` | True during SWR background updates |
 | `fn` | `Function` | Manually trigger the async function |
@@ -1217,7 +1237,7 @@ const fetchUser = createAsync(getUserData, {
 });
 
 // React usage with manual control
-const { data, loading, error, fn: fetchUserProxy } = useAsync(
+const { data, pending, error, fn: fetchUserProxy } = useAsync(
   () => fetchUser(userId),
   {
     deps: [userId],
@@ -1311,7 +1331,7 @@ const { data, error, isLoading, mutate } = useSWR(
 const handleRefresh = () => mutate(); // ❌ Complex revalidation logic
 
 // After (great-async)
-const { data, error, loading, fn: fetchUserDataProxy } = useAsync(
+const { data, error, pending, fn: fetchUserDataProxy } = useAsync(
   (id: string = userId) => fetchUserData(id),
   {
     deps: [userId],
@@ -1346,7 +1366,7 @@ const { data, isLoading, error, refetch } = useQuery({
 const handleRefresh = () => refetch(); // ❌ No control over parameters
 
 // After (great-async)
-const { data, loading, error, fn: fetchPostsProxy } = useAsync(
+const { data, pending, error, fn: fetchPostsProxy } = useAsync(
   (params: { page: number } = { page }) => fetchPosts(params),
   {
     deps: [page],
@@ -1439,7 +1459,7 @@ import { useAsync } from 'great-async/use-async';
 + import { useAsync } from 'great-async'
 
 - const { data, isLoading } = useQuery('user', fetchUser)
-+ const { data, loading } = useAsync(fetchUser, { cache: { ttl: 300000 } })
++ const { data, pending } = useAsync(fetchUser, { cache: { ttl: 300000 } })
 ```
 
 ## Best Practices
