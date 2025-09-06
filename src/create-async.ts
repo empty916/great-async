@@ -307,7 +307,6 @@ export function createAsync<F extends PromiseFunction>(
           const runFnPromise = finalFn(params);
           return runFnPromise
             .then((res) => {
-              // eslint-disable-next-line @typescript-eslint/no-shadow
               const thisCache = cacheMap.get(fnProxy);
               const composeRes = new AsyncResolveResult(res);
               if (
@@ -326,7 +325,7 @@ export function createAsync<F extends PromiseFunction>(
               return res;
             })
             .catch((e) => {
-              listener.forEach((i) => {
+              listener.filter(i => i.token === scopeToken).forEach((i) => {
                 i.reject(e);
               });
 
