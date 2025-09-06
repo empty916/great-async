@@ -1,5 +1,5 @@
 import type { CacheData, PickPromiseType, PromiseFunction, T_DIMENSIONS, AsyncError } from "./common";
-import { AsyncResolveResult, AsyncResolveToken, cacheMap, defaultGenKeyByParams, DIMENSIONS, FalsyValue, getCache } from "./common";
+import { AsyncResolveResult, AsyncResolveToken, cacheMap, DEFAULT_PROMISE_DEBOUNCE_KEY, DEFAULT_SINGLE_KEY, DEFAULT_TIMER_KEY, defaultGenKeyByParams, DIMENSIONS, FalsyValue, getCache, TokenManager } from "./common";
 import { LRU } from "./LRU";
 import { createTakeLatestPromiseFn } from "./take-latest-promise";
 
@@ -129,10 +129,6 @@ export type ReturnTypeOfCreateAsync<F extends PromiseFunction> = {
   clearCache: ClearCache<F>;
 };
 
-export const DEFAULT_TIMER_KEY = Symbol('DEFAULT_TIMER_KEY');
-export const DEFAULT_SINGLE_KEY = Symbol('DEFAULT_SINGLE_KEY');
-export const DEFAULT_PROMISE_DEBOUNCE_KEY = Symbol('DEFAULT_PROMISE_DEBOUNCE_KEY');
-
 /**
  * Create async controller with enhanced features like caching, debouncing, SWR, etc.
  * This is the main implementation function.
@@ -187,6 +183,7 @@ export function createAsync<F extends PromiseFunction>(
     resolve: (arg?: any) => any;
     reject: (arg?: any) => any;
     token: string | symbol;
+    key: string | symbol;
   }[] = [];
 
   async function retryFn(
@@ -220,7 +217,7 @@ export function createAsync<F extends PromiseFunction>(
     }
   }
 
-  let token = Symbol('listener_token');
+  const tm = new TokenManager(debounceDimension);
 
   function fnProxy(...params: Parameters<F>): ReturnType<F> {
     const key = genKeyByParams(params);
@@ -275,34 +272,37 @@ export function createAsync<F extends PromiseFunction>(
     }
     const promiseHandler = new Promise<AsyncResolveToken>((resolve, reject) => {
       if (debounceTime === -1) {
-        resolve(new AsyncResolveToken(token));
-        token = Symbol('listener_token');
+        resolve(new AsyncResolveToken(tm.getToken()));
+        tm.refresh();
         return;
       }
 
       listener.push({
         resolve,
         reject,
-        token,
+        token: tm.getToken(key),
+        key: debounceDimension === DIMENSIONS.FUNCTION ? DEFAULT_TIMER_KEY : key,
       });
       if (debounceDimension === DIMENSIONS.FUNCTION) {
         clearTimeout(timerMapOfDebounce.get(DEFAULT_TIMER_KEY));
         timerMapOfDebounce.set(DEFAULT_TIMER_KEY, setTimeout(() => {
-          resolve(new AsyncResolveToken(token));
-          token = Symbol('listener_token');
+          resolve(new AsyncResolveToken(tm.getToken()));
+          tm.refresh();
         }, debounceTime));
       }
       if (debounceDimension === DIMENSIONS.PARAMETERS) {
         clearTimeout(timerMapOfDebounce.get(key));
         timerMapOfDebounce.set(key, setTimeout(() => {
-          resolve(new AsyncResolveToken(token));
-          token = Symbol('listener_token');
+          resolve(new AsyncResolveToken(tm.getToken(key)));
+          tm.refresh(key);
         }, debounceTime));
       }
     })
       .then((arg: any) => {
         if (arg instanceof AsyncResolveToken) {
+
           const scopeToken = arg.value;
+          
           beforeRun?.();
           const runFnPromise = finalFn(params);
           return runFnPromise
@@ -319,19 +319,37 @@ export function createAsync<F extends PromiseFunction>(
                   timestamp: Date.now(),
                 });
               }
-              listener.filter(i => i.token === scopeToken).forEach((i) => {
+              listener.filter(i => {
+                if (debounceDimension === DIMENSIONS.FUNCTION) {
+                  return i.token === scopeToken && i.key === DEFAULT_TIMER_KEY;
+                }
+                return i.token === scopeToken && i.key === key;
+              }).forEach((i) => {
                 i.resolve(composeRes);
               });
               return res;
             })
             .catch((e) => {
-              listener.filter(i => i.token === scopeToken).forEach((i) => {
+              listener.filter(i => {
+                if (debounceDimension === DIMENSIONS.FUNCTION) {
+                  return i.token === scopeToken && i.key === DEFAULT_TIMER_KEY;
+                }
+                return i.token === scopeToken && i.key === key;
+              }).forEach((i) => {
                 i.reject(e);
               });
 
               throw e;
             }).finally(() => {
-              listener = listener.filter(i => i.token !== scopeToken);
+              listener = listener.filter(i => {
+                if (debounceDimension === DIMENSIONS.FUNCTION) {
+                  return !(i.token === scopeToken && i.key === DEFAULT_TIMER_KEY);
+                }
+                return !(i.token === scopeToken && i.key === key);
+              });
+              if (!listener.find(i => i.key === key)) {
+                tm.remove(key);
+              }
             });
         }
         if (arg instanceof AsyncResolveResult) {
