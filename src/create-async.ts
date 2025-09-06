@@ -1,5 +1,5 @@
 import type { CacheData, PickPromiseType, PromiseFunction, T_DIMENSIONS, AsyncError } from "./common";
-import { cacheMap, defaultGenKeyByParams, DIMENSIONS, FalsyValue, getCache } from "./common";
+import { AsyncResolveResult, AsyncResolveToken, cacheMap, defaultGenKeyByParams, DIMENSIONS, FalsyValue, getCache } from "./common";
 import { LRU } from "./LRU";
 import { createTakeLatestPromiseFn } from "./take-latest-promise";
 
@@ -40,6 +40,9 @@ function clearCache(fn: PromiseFunction, key?: string) {
     fnCache.clear();
   }
 }
+
+
+
 
 export interface CreateAsyncOptions<
   F extends PromiseFunction = PromiseFunction
@@ -183,6 +186,7 @@ export function createAsync<F extends PromiseFunction>(
   let listener: {
     resolve: (arg?: any) => any;
     reject: (arg?: any) => any;
+    token: string | symbol;
   }[] = [];
 
   async function retryFn(
@@ -215,6 +219,8 @@ export function createAsync<F extends PromiseFunction>(
       finalFn = createTakeLatestPromiseFn(retryFn as any, genKeyByParams, true);
     }
   }
+
+  let token = Symbol('listener_token');
 
   function fnProxy(...params: Parameters<F>): ReturnType<F> {
     const key = genKeyByParams(params);
@@ -267,32 +273,43 @@ export function createAsync<F extends PromiseFunction>(
         return promiseHandlerMap.get(key)! as ReturnType<F>;
       }
     }
-    const promiseHandler = new Promise<void>((resolve, reject) => {
+    const promiseHandler = new Promise<AsyncResolveToken>((resolve, reject) => {
       if (debounceTime === -1) {
-        return resolve();
+        resolve(new AsyncResolveToken(token));
+        token = Symbol('listener_token');
+        return;
       }
+
       listener.push({
         resolve,
         reject,
+        token,
       });
       if (debounceDimension === DIMENSIONS.FUNCTION) {
         clearTimeout(timerMapOfDebounce.get(DEFAULT_TIMER_KEY));
-        timerMapOfDebounce.set(DEFAULT_TIMER_KEY, setTimeout(resolve, debounceTime));
+        timerMapOfDebounce.set(DEFAULT_TIMER_KEY, setTimeout(() => {
+          resolve(new AsyncResolveToken(token));
+          token = Symbol('listener_token');
+        }, debounceTime));
       }
       if (debounceDimension === DIMENSIONS.PARAMETERS) {
         clearTimeout(timerMapOfDebounce.get(key));
-        timerMapOfDebounce.set(key, setTimeout(resolve, debounceTime));
+        timerMapOfDebounce.set(key, setTimeout(() => {
+          resolve(new AsyncResolveToken(token));
+          token = Symbol('listener_token');
+        }, debounceTime));
       }
     })
       .then((arg: any) => {
-        if (arg === undefined) {
+        if (arg instanceof AsyncResolveToken) {
+          const scopeToken = arg.value;
           beforeRun?.();
           const runFnPromise = finalFn(params);
           return runFnPromise
             .then((res) => {
               // eslint-disable-next-line @typescript-eslint/no-shadow
               const thisCache = cacheMap.get(fnProxy);
-              const composeRes = res || new FalsyValue(res);
+              const composeRes = new AsyncResolveResult(res);
               if (
                 thisCache &&
                 (ttl !== -1 || cacheCapacity !== -1) &&
@@ -303,7 +320,7 @@ export function createAsync<F extends PromiseFunction>(
                   timestamp: Date.now(),
                 });
               }
-              listener.forEach((i) => {
+              listener.filter(i => i.token === scopeToken).forEach((i) => {
                 i.resolve(composeRes);
               });
               return res;
@@ -314,16 +331,21 @@ export function createAsync<F extends PromiseFunction>(
               });
 
               throw e;
+            }).finally(() => {
+              listener = listener.filter(i => i.token !== scopeToken);
             });
         }
-        return arg instanceof FalsyValue ? arg.getValue() : arg;
+        if (arg instanceof AsyncResolveResult) {
+          return arg.result;
+        }
+        return arg;
       })
       .finally(() => {
         timerMapOfDebounce.delete(DEFAULT_TIMER_KEY);
         timerMapOfDebounce.delete(key);
         promiseHandlerMap.delete(DEFAULT_SINGLE_KEY);
         promiseHandlerMap.delete(key);
-        listener = [];
+        // listener = listener.filter(i => i.token !== scopeToken);
       });
     if (singleDimension === DIMENSIONS.FUNCTION) {
       promiseHandlerMap.set(DEFAULT_SINGLE_KEY, promiseHandler);

@@ -136,6 +136,24 @@ test('debounce time', async () => {
 });
 
 
+test('debounce time 2', async () => {
+	let times = 0;
+	const getUserData = createAsync(async () => {
+		times++;
+		await sleep(100);
+		return {
+			name: 'tom',
+			age: 10
+		}
+	}, {
+		debounceTime: 200,
+	});
+	getUserData();
+	await sleep(210);
+	await getUserData();
+	expect(times).toBe(2);
+
+});
 
 
 test('promise and time debounce ', async () => {

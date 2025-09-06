@@ -94,3 +94,17 @@ export function getCache({
 	}
 	return null;
 }
+
+export class AsyncResolveToken {
+  value: symbol;
+  constructor(v: symbol) {
+    this.value = v;
+  }
+}
+
+export class AsyncResolveResult<T = any> {
+  result: T;
+  constructor(r: T) {
+    this.result = r;
+  }
+}
