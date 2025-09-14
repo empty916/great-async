@@ -23,16 +23,6 @@ export const shallowEqual = (arr1: DependencyList, arr2: DependencyList) => {
 
 export type AnyFn = (...args: any) => any;
 
-export class FalsyValue {
-  v: any;
-  constructor(v: any) {
-    this.v = v;
-  }
-  getValue() {
-    return this.v;
-  }
-}
-
 export const SCOPE = {
   FUNCTION: 0,
   PARAMETERS: 1,
@@ -102,4 +92,54 @@ export function getCache({
 	  }
 	}
 	return null;
+}
+
+export class AsyncResolveToken {
+  value: symbol;
+  constructor(v: symbol) {
+    this.value = v;
+  }
+}
+
+export class AsyncResolveResult<T = any> {
+  result: T;
+  constructor(r: T) {
+    this.result = r;
+  }
+}
+
+
+export const DEFAULT_TIMER_KEY = Symbol('DEFAULT_TIMER_KEY');
+export const DEFAULT_SINGLE_KEY = Symbol('DEFAULT_SINGLE_KEY');
+export const DEFAULT_PROMISE_DEBOUNCE_KEY = Symbol('DEFAULT_PROMISE_DEBOUNCE_KEY');
+
+
+export class TokenManager {
+	scope: T_SCOPE;
+	token = new Map<string|symbol, symbol>();
+	constructor(s: T_SCOPE) {
+		this.scope = s;
+	}
+	getKey(key?: string|symbol) {
+		if (this.scope === SCOPE.PARAMETERS) {
+			return key || DEFAULT_TIMER_KEY;
+		}
+		return DEFAULT_TIMER_KEY;
+	}
+	initToken(key?: string|symbol) {
+		this.token.set(this.getKey(key), Symbol('async_token'));
+	}
+	getToken(key?: string|symbol) {
+		if (!this.token.has(this.getKey(key))) {
+			this.initToken(key);
+		}
+		return this.token.get(this.getKey(key))!;
+	}
+	refresh(key?: string|symbol) {
+		this.initToken(key);
+		return this.token.get(this.getKey(key));
+	}
+	remove(key?: string|symbol) {
+		this.token.delete(this.getKey(key));
+	}
 }

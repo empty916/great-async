@@ -1,4 +1,4 @@
-import { FalsyValue, shallowEqual } from "../src";
+import { shallowEqual } from "../src";
 
 
 
@@ -13,11 +13,3 @@ test('array length does not equal', () => {
     const arr2 = [1,2,'3', true];
     expect(shallowEqual(arr1, arr2)).toBe(false);
 });
-
-test('falsy value', () => {
-    expect(new FalsyValue(null).getValue()).toBe(null);
-    expect(new FalsyValue(undefined).getValue()).toBe(undefined);
-
-    let obj = {};
-    expect(new FalsyValue(obj).getValue()).toBe(obj);
-})
