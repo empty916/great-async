@@ -1,6 +1,6 @@
 {
   "name": "great-async",
-  "version": "2.0.0-beta1",
+  "version": "2.0.0-beta2",
   "description": "Framework-agnostic async utilities with React hooks, caching, SWR, debouncing, and more. Features modern 'pending' state for better semantics.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
