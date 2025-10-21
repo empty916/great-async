@@ -127,6 +127,77 @@ test('should share loading state with same loadingId', async () => {
 
 });
 
+
+test('should share loading state with same loadingId, one of them is not auto', async () => {
+    const getUserInfo = async () => {
+        await sleep(10);
+        return {
+            name: 'tom',
+            age: 10,
+            id: 'xxx',
+        };
+    };
+
+    const App = () => {
+        const { loading, data } = useAsync(getUserInfo, {
+            loadingId: 'app2',
+        });
+        if (loading) {
+            return <span role="loading">loading</span>;
+        }
+        return (
+            <div role={'app'}>
+                <span>{data.id}</span>
+                <span>{data.name}</span>
+                <span>{data.age}</span>
+            </div>
+        );
+    };
+    const App2 = () => {
+        const { loading, data, fn } = useAsync(getUserInfo, {
+            loadingId: 'app2',
+            auto: false,
+        });
+
+        useEffect(() => {
+            fn();
+        }, [])
+
+        if (loading) {
+            return <span role="loading2">loading2</span>;
+        }
+        return (
+            <div role={'app2'}>
+                <span>{data.id}</span>
+                <span>{data.name}</span>
+                <span>{data.age}</span>
+            </div>
+        );
+    };
+    render((
+        <>
+            <App />
+            <App2 />
+        </>
+    ));
+    expect(shareLoading.isLoading('app2')).toBe(true);
+    expect(screen.getByRole('loading')).toHaveTextContent('loading');
+    expect(screen.getByRole('loading2')).toHaveTextContent('loading2');
+    await waitFor(() => screen.getByRole('app'));
+
+    expect(shareLoading.isLoading('app2')).toBe(false);
+    expect(screen.getByRole('app')).toHaveTextContent('xxx');
+    expect(screen.getByRole('app')).toHaveTextContent('tom');
+    expect(screen.getByRole('app')).toHaveTextContent('10');
+
+    expect(screen.getByRole('app2')).toHaveTextContent('xxx');
+    expect(screen.getByRole('app2')).toHaveTextContent('tom');
+    expect(screen.getByRole('app2')).toHaveTextContent('10');
+
+
+
+});
+
 test('should cache data with TTL configuration', async () => {
     let times = 0;
     const getUserInfo = async () => {
