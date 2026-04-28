@@ -454,18 +454,12 @@ export function createAsync<F extends PromiseFunction>(
       // Notify that background update is starting
       onBackgroundUpdateStart?.(cache.value);
 
-      // Start background update
+      // Start background update through the full execution pipeline
+      // (single dedup, debounce, retry, takeLatest) — so rapid calls
+      // naturally share the same background promise via promiseHandlerMap.
       const backgroundUpdate = async () => {
         try {
-          const freshData = await finalFn(params);
-          // Update cache with fresh data
-          const thisCache = cacheMap.get(fnProxy);
-          if (thisCache && (ttl !== -1 || cacheCapacity !== -1)) {
-            thisCache.set(key, {
-              data: freshData,
-              timestamp: Date.now(),
-            });
-          }
+          const freshData = await executeAsync();
           onBackgroundUpdate?.(freshData, undefined);
         } catch (error) {
           onBackgroundUpdate?.(undefined, error);
@@ -481,114 +475,120 @@ export function createAsync<F extends PromiseFunction>(
     if (cache) {
       return Promise.resolve(cache.value) as ReturnType<F>;
     }
-    if (singleEnabled && debounceTime === -1) {
-      if (singleDimension === SCOPE.FUNCTION && promiseHandlerMap.get(DEFAULT_SINGLE_KEY)) {
-        return promiseHandlerMap.get(DEFAULT_SINGLE_KEY)! as ReturnType<F>;
-      }
-      if (singleDimension === SCOPE.PARAMETERS && promiseHandlerMap.get(key)) {
-        return promiseHandlerMap.get(key)! as ReturnType<F>;
-      }
-    }
-    const promiseHandler = new Promise<AsyncResolveToken>((resolve, reject) => {
-      if (debounceTime === -1) {
-        resolve(new AsyncResolveToken(tm.getToken()));
-        tm.refresh();
-        return;
-      }
 
-      listener.push({
-        resolve,
-        reject,
-        token: tm.getToken(key),
-        key: debounceDimension === SCOPE.FUNCTION ? DEFAULT_TIMER_KEY : key,
-      });
-      if (debounceDimension === SCOPE.FUNCTION) {
-        clearTimeout(timerMapOfDebounce.get(DEFAULT_TIMER_KEY));
-        timerMapOfDebounce.set(DEFAULT_TIMER_KEY, setTimeout(() => {
+    return executeAsync();
+
+    // Execute the async function with all features (single, debounce, takeLatest, retry)
+    // but without cache/SWR handling. Used by both the normal path and SWR background updates.
+    function executeAsync(): ReturnType<F> {
+      if (singleEnabled && debounceTime === -1) {
+        if (singleDimension === SCOPE.FUNCTION && promiseHandlerMap.get(DEFAULT_SINGLE_KEY)) {
+          return promiseHandlerMap.get(DEFAULT_SINGLE_KEY)! as ReturnType<F>;
+        }
+        if (singleDimension === SCOPE.PARAMETERS && promiseHandlerMap.get(key)) {
+          return promiseHandlerMap.get(key)! as ReturnType<F>;
+        }
+      }
+      const promiseHandler = new Promise<AsyncResolveToken>((resolve, reject) => {
+        if (debounceTime === -1) {
           resolve(new AsyncResolveToken(tm.getToken()));
           tm.refresh();
-        }, debounceTime));
-      }
-      if (debounceDimension === SCOPE.PARAMETERS) {
-        clearTimeout(timerMapOfDebounce.get(key));
-        timerMapOfDebounce.set(key, setTimeout(() => {
-          resolve(new AsyncResolveToken(tm.getToken(key)));
-          tm.refresh(key);
-        }, debounceTime));
-      }
-    })
-      .then((arg: any) => {
-        if (arg instanceof AsyncResolveToken) {
-
-          const scopeToken = arg.value;
-
-          beforeRun?.();
-          const runFnPromise = finalFn(params);
-          return runFnPromise
-            .then((res) => {
-              const thisCache = cacheMap.get(fnProxy);
-              const composeRes = new AsyncResolveResult(res);
-              if (
-                thisCache &&
-                (ttl !== -1 || cacheCapacity !== -1) &&
-                thisCache.get(key)?.data !== res
-              ) {
-                thisCache.set(key, {
-                  data: res,
-                  timestamp: Date.now(),
-                });
-              }
-              listener.filter(i => {
-                if (debounceDimension === SCOPE.FUNCTION) {
-                  return i.token === scopeToken && i.key === DEFAULT_TIMER_KEY;
-                }
-                return i.token === scopeToken && i.key === key;
-              }).forEach((i) => {
-                i.resolve(composeRes);
-              });
-              return res;
-            })
-            .catch((e) => {
-              listener.filter(i => {
-                if (debounceDimension === SCOPE.FUNCTION) {
-                  return i.token === scopeToken && i.key === DEFAULT_TIMER_KEY;
-                }
-                return i.token === scopeToken && i.key === key;
-              }).forEach((i) => {
-                i.reject(e);
-              });
-
-              throw e;
-            }).finally(() => {
-              listener = listener.filter(i => {
-                if (debounceDimension === SCOPE.FUNCTION) {
-                  return !(i.token === scopeToken && i.key === DEFAULT_TIMER_KEY);
-                }
-                return !(i.token === scopeToken && i.key === key);
-              });
-              if (!listener.find(i => i.key === key)) {
-                tm.remove(key);
-              }
-            });
+          return;
         }
-        if (arg instanceof AsyncResolveResult) {
-          return arg.result;
+
+        listener.push({
+          resolve,
+          reject,
+          token: tm.getToken(key),
+          key: debounceDimension === SCOPE.FUNCTION ? DEFAULT_TIMER_KEY : key,
+        });
+        if (debounceDimension === SCOPE.FUNCTION) {
+          clearTimeout(timerMapOfDebounce.get(DEFAULT_TIMER_KEY));
+          timerMapOfDebounce.set(DEFAULT_TIMER_KEY, setTimeout(() => {
+            resolve(new AsyncResolveToken(tm.getToken()));
+            tm.refresh();
+          }, debounceTime));
         }
-        return arg;
+        if (debounceDimension === SCOPE.PARAMETERS) {
+          clearTimeout(timerMapOfDebounce.get(key));
+          timerMapOfDebounce.set(key, setTimeout(() => {
+            resolve(new AsyncResolveToken(tm.getToken(key)));
+            tm.refresh(key);
+          }, debounceTime));
+        }
       })
-      .finally(() => {
-        timerMapOfDebounce.delete(DEFAULT_TIMER_KEY);
-        timerMapOfDebounce.delete(key);
-        promiseHandlerMap.delete(DEFAULT_SINGLE_KEY);
-        promiseHandlerMap.delete(key);
-        // listener = listener.filter(i => i.token !== scopeToken);
-      });
-    if (singleDimension === SCOPE.FUNCTION) {
-      promiseHandlerMap.set(DEFAULT_SINGLE_KEY, promiseHandler);
-    } else {
-      promiseHandlerMap.set(key, promiseHandler);
+        .then((arg: any) => {
+          if (arg instanceof AsyncResolveToken) {
+
+            const scopeToken = arg.value;
+
+            beforeRun?.();
+            const runFnPromise = finalFn(params);
+            return runFnPromise
+              .then((res) => {
+                const thisCache = cacheMap.get(fnProxy);
+                const composeRes = new AsyncResolveResult(res);
+                if (
+                  thisCache &&
+                  (ttl !== -1 || cacheCapacity !== -1) &&
+                  thisCache.get(key)?.data !== res
+                ) {
+                  thisCache.set(key, {
+                    data: res,
+                    timestamp: Date.now(),
+                  });
+                }
+                listener.filter(i => {
+                  if (debounceDimension === SCOPE.FUNCTION) {
+                    return i.token === scopeToken && i.key === DEFAULT_TIMER_KEY;
+                  }
+                  return i.token === scopeToken && i.key === key;
+                }).forEach((i) => {
+                  i.resolve(composeRes);
+                });
+                return res;
+              })
+              .catch((e) => {
+                listener.filter(i => {
+                  if (debounceDimension === SCOPE.FUNCTION) {
+                    return i.token === scopeToken && i.key === DEFAULT_TIMER_KEY;
+                  }
+                  return i.token === scopeToken && i.key === key;
+                }).forEach((i) => {
+                  i.reject(e);
+                });
+
+                throw e;
+              }).finally(() => {
+                listener = listener.filter(i => {
+                  if (debounceDimension === SCOPE.FUNCTION) {
+                    return !(i.token === scopeToken && i.key === DEFAULT_TIMER_KEY);
+                  }
+                  return !(i.token === scopeToken && i.key === key);
+                });
+                if (!listener.find(i => i.key === key)) {
+                  tm.remove(key);
+                }
+              });
+          }
+          if (arg instanceof AsyncResolveResult) {
+            return arg.result;
+          }
+          return arg;
+        })
+        .finally(() => {
+          timerMapOfDebounce.delete(DEFAULT_TIMER_KEY);
+          timerMapOfDebounce.delete(key);
+          promiseHandlerMap.delete(DEFAULT_SINGLE_KEY);
+          promiseHandlerMap.delete(key);
+        });
+      if (singleDimension === SCOPE.FUNCTION) {
+        promiseHandlerMap.set(DEFAULT_SINGLE_KEY, promiseHandler);
+      } else {
+        promiseHandlerMap.set(key, promiseHandler);
+      }
+      return promiseHandler as ReturnType<F>;
     }
-    return promiseHandler as ReturnType<F>;
   }
 
   cacheMap.set(

@@ -12,7 +12,7 @@ import {
   useMemo,
 } from "react";
 import type { PickPromiseType, PromiseFunction, AsyncError } from "./common";
-import { shallowEqual } from "./common";
+import { shallowEqual, getCache, defaultGenKeyByParams } from "./common";
 import { sharePending, usePendingState } from "./share-pending";
 
 export interface AsyncFunctionState<T> {
@@ -45,6 +45,12 @@ export interface UseAsyncOptions<F extends PromiseFunction>
    * When using useAsync in different components and giving them the same pendingId, they will share the "pending" state.
    */
   pendingId?: string;
+  /**
+   * Default value for data before the async function resolves.
+   * Also used as the data value when the async function rejects.
+   * @default null
+   */
+  defaultData?: PickPromiseType<F>;
 }
 
 export type UseAsyncReturn<F extends PromiseFunction> =
@@ -154,6 +160,7 @@ export const useAsync = <F extends PromiseFunction>(
     deps,
     auto = true,
     pendingId,
+    defaultData = null,
     ...createAsyncOptions
   } = opts;
 
@@ -173,6 +180,7 @@ export const useAsync = <F extends PromiseFunction>(
     auto: auto,
     loadingId: '',
     onBackgroundUpdate: onBackgroundUpdate,
+    defaultData: defaultData as PickPromiseType<F> | null,
   });
   const [createAsyncOpts] = useState(createAsyncOptions);
   const [asyncFunctionState, setAsyncFunctionState] = useState<
@@ -181,7 +189,7 @@ export const useAsync = <F extends PromiseFunction>(
     pending: auto === true,
     loading: auto === true, // Deprecated but kept for compatibility
     error: null,
-    data: null,
+    data: defaultData,
   });
   const [backgroundUpdating, setBackgroundUpdating] = useState(false);
 
@@ -190,6 +198,7 @@ export const useAsync = <F extends PromiseFunction>(
   argsRef.current.deps = deps;
   argsRef.current.loadingId = pendingId || '';
   argsRef.current.onBackgroundUpdate = onBackgroundUpdate;
+  argsRef.current.defaultData = defaultData;
 
   if (deps && !Array.isArray(deps)) {
     throw new Error("The deps must be an Array!");
@@ -289,7 +298,17 @@ export const useAsync = <F extends PromiseFunction>(
       return async (...args: Parameters<F>) => {
         await Promise.resolve();
 
-        if ((createAsyncOpts.debounce?.time || -1) === -1) {
+        // Check if SWR has valid cache — if so, fnProxy returns cached data immediately
+        // and we should not set pending=true to avoid a brief pending flash
+        const cacheKey = (createAsyncOpts.cache?.keyGenerator || defaultGenKeyByParams)(args);
+        const hasSWRCache = swr && !!getCache({
+          ttl: createAsyncOpts.cache?.ttl ?? -1,
+          cacheCapacity: createAsyncOpts.cache?.capacity ?? -1,
+          fn: fnProxy,
+          key: cacheKey,
+        });
+
+        if ((createAsyncOpts.debounce?.time || -1) === -1 && !hasSWRCache) {
           setAsyncFunctionState((ov) => {
             if (ov.pending) {
               return ov;
@@ -318,14 +337,15 @@ export const useAsync = <F extends PromiseFunction>(
           return res;
         } catch (err) {
           setAsyncFunctionState((ov) => {
-            if (!ov.pending && ov.error === err && ov.data === null) {
+            const fallbackData = argsRef.current.defaultData;
+            if (!ov.pending && ov.error === err && ov.data === fallbackData) {
               return ov;
             }
             return {
               error: err,
               pending: false,
               loading: false, // Deprecated but kept for compatibility
-              data: null,
+              data: fallbackData,
             };
           });
           if (throwError) {
@@ -334,7 +354,7 @@ export const useAsync = <F extends PromiseFunction>(
         }
       };
     },
-    [fnProxy]
+    [fnProxy, swr, createAsyncOpts]
   );
 
   const runFn = useMemo(() => createRunFn(false), [createRunFn]);
