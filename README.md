@@ -802,6 +802,37 @@ function UserSettings({ userId }: { userId: string }) {
 }
 ```
 
+#### 📦 Default Data
+
+Use `defaultData` to avoid unnecessary null checks and provide fallback values:
+
+```tsx
+function ProductList() {
+  // Define the API function
+  const fetchProducts = async () => {
+    const response = await fetch('/api/products');
+    if (!response.ok) throw new Error('Failed to fetch');
+    return response.json(); // Returns Product[]
+  };
+
+  const { data, pending, error } = useAsync(
+    fetchProducts,
+    { defaultData: [] } // Start with empty array, fallback on error
+  );
+
+  // data is always an array — no null check needed
+  return (
+    <div>
+      {pending && <span>Refreshing...</span>}
+      {error && <div>Error: {error.message}</div>}
+      {data.map(product => (
+        <div key={product.id}>{product.name}</div>
+      ))}
+    </div>
+  );
+}
+```
+
 
 ## API Reference
 
@@ -1049,6 +1080,7 @@ Extends `createAsync` options with React-specific features. **All `createAsync` 
 | `deps` | `Array` | `[]` | Re-run when dependencies change |
 | `pendingId` | `string` | `''` | Share pending state across components (recommended) |
 | `loadingId` | `string` | `''` | Share pending state across components (deprecated, use `pendingId`) |
+| `defaultData` | `T` | `null` | Default value for `data` before the async function resolves. Also used as the fallback value when the function rejects |
 
 #### Inherited Options from createAsync
 All grouped options from `createAsync` are supported:
