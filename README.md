@@ -755,6 +755,37 @@ function UserSettings({ userId }: { userId: string }) {
 }
 ```
 
+#### 📦 Default Data
+
+Use `defaultData` to avoid unnecessary null checks and provide fallback values:
+
+```tsx
+function ProductList() {
+  // Define the API function
+  const fetchProducts = async () => {
+    const response = await fetch('/api/products');
+    if (!response.ok) throw new Error('Failed to fetch');
+    return response.json(); // Returns Product[]
+  };
+
+  const { data, loading, error } = useAsync(
+    fetchProducts,
+    { defaultData: [] } // Start with empty array, fallback on error
+  );
+
+  // data is always an array — no null check needed
+  return (
+    <div>
+      {loading && <span>Refreshing...</span>}
+      {error && <div>Error: {error.message}</div>}
+      {data.map(product => (
+        <div key={product.id}>{product.name}</div>
+      ))}
+    </div>
+  );
+}
+```
+
 
 ## API Reference
 
@@ -915,6 +946,7 @@ Extends `createAsync` options with React-specific features:
 | `auto` | `boolean \| 'deps-only'` | `true` | Control auto-execution behavior:<br/>• `true`: Auto-call on mount and deps change<br/>• `false`: Manual execution only<br/>• `'deps-only'`: Auto-call only when deps change |
 | `deps` | `Array` | `[]` | Re-run when dependencies change |
 | `loadingId` | `string` | `''` | Share loading state across components |
+| `defaultData` | `T` | `null` | Default value for `data` before the async function resolves. Also used as the fallback value when the function rejects |
 
 #### Return Values
 | Property | Type | Description |
