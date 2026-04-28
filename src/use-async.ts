@@ -12,7 +12,7 @@ import {
   useMemo,
 } from "react";
 import type { PickPromiseType, PromiseFunction, AsyncError } from "./common";
-import { shallowEqual } from "./common";
+import { shallowEqual, getCache, defaultGenKeyByParams } from "./common";
 import { shareLoading, useLoadingState } from "./share-loading";
 
 export interface AsyncFunctionState<T> {
@@ -47,6 +47,12 @@ export interface UseAsyncOptions<F extends PromiseFunction>
    * When using useAsync in different components and giving them the same loadingId, they will share the "loading" state.
    */
   loadingId?: string;
+  /**
+   * Default value for data before the async function resolves.
+   * Also used as the data value when the async function rejects.
+   * @default null
+   */
+  defaultData?: PickPromiseType<F>;
 }
 
 export type UseAsyncReturn<F extends PromiseFunction> =
@@ -148,6 +154,7 @@ export const useAsync = <F extends PromiseFunction>(
     loadingId,
     swr = false,
     onBackgroundUpdate,
+    defaultData = null,
     ...createAsyncOptions
   } = opts;
   const stateRef = useRef({
@@ -164,6 +171,7 @@ export const useAsync = <F extends PromiseFunction>(
     auto: auto,
     loadingId: '',
     onBackgroundUpdate: onBackgroundUpdate,
+    defaultData: defaultData as PickPromiseType<F> | null,
   });
   const [createAsyncOpts] = useState(createAsyncOptions);
   const [asyncFunctionState, setAsyncFunctionState] = useState<
@@ -171,7 +179,7 @@ export const useAsync = <F extends PromiseFunction>(
   >({
     loading: manual === undefined ? (auto === true) : !manual,
     error: null,
-    data: null,
+    data: defaultData,
   });
   const [backgroundUpdating, setBackgroundUpdating] = useState(false);
 
@@ -181,6 +189,7 @@ export const useAsync = <F extends PromiseFunction>(
   argsRef.current.deps = deps;
   argsRef.current.loadingId = loadingId || '';
   argsRef.current.onBackgroundUpdate = onBackgroundUpdate;
+  argsRef.current.defaultData = defaultData;
 
   if (deps && !Array.isArray(deps)) {
     throw new Error("The deps must be an Array!");
@@ -268,7 +277,17 @@ export const useAsync = <F extends PromiseFunction>(
       return async (...args: Parameters<F>) => {
         await Promise.resolve();
 
-        if (createAsyncOpts.debounceTime === -1) {
+        // Check if SWR has valid cache — if so, fnProxy returns cached data immediately
+        // and we should not set loading=true to avoid a brief loading flash
+        const cacheKey = (createAsyncOpts.genKeyByParams || defaultGenKeyByParams)(args);
+        const hasSWRCache = swr && !!getCache({
+          ttl: createAsyncOpts.ttl ?? -1,
+          cacheCapacity: createAsyncOpts.cacheCapacity ?? -1,
+          fn: fnProxy,
+          key: cacheKey,
+        });
+
+        if (createAsyncOpts.debounceTime === -1 && !hasSWRCache) {
           setAsyncFunctionState((ov) => {
             if (ov.loading) {
               return ov;
@@ -295,13 +314,14 @@ export const useAsync = <F extends PromiseFunction>(
           return res;
         } catch (err) {
           setAsyncFunctionState((ov) => {
-            if (!ov.loading && ov.error === err && ov.data === null) {
+            const fallbackData = argsRef.current.defaultData;
+            if (!ov.loading && ov.error === err && ov.data === fallbackData) {
               return ov;
             }
             return {
               error: err,
               loading: false,
-              data: null,
+              data: fallbackData,
             };
           });
           if (throwError) {
@@ -312,7 +332,7 @@ export const useAsync = <F extends PromiseFunction>(
         }
       };
     },
-    [fnProxy]
+    [fnProxy, swr, createAsyncOpts]
   );
 
   const runFn = useMemo(() => createRunFn(false), [createRunFn]);
