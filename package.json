@@ -35,8 +35,8 @@
     "test": "jest",
     "build": "rimraf dist && tsc",
     "prepublish": "npm run test && npm run build",
-    "pub": "yarn publish --tag next",
-    "pub:release": "yarn publish"
+    "pub": "npm publish --tag next",
+    "pub:release": "npm publish"
   },
   "files": [
     "dist",
