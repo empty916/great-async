@@ -1,13 +1,20 @@
-import type { CacheData, PickPromiseType, PromiseFunction, T_DIMENSIONS, AsyncError } from "./common";
-import { AsyncResolveResult, AsyncResolveToken, cacheMap, DEFAULT_PROMISE_DEBOUNCE_KEY, DEFAULT_SINGLE_KEY, DEFAULT_TIMER_KEY, defaultGenKeyByParams, DIMENSIONS, FalsyValue, getCache, TokenManager } from "./common";
-import { LRU } from "./LRU";
+import type { PickPromiseType, PromiseFunction, AsyncError } from "./common";
+import { AsyncResolveResult, AsyncResolveToken, defaultGenKeyByParams } from "./common";
+import { DEFAULT_PROMISE_DEBOUNCE_KEY, DEFAULT_SINGLE_KEY, DEFAULT_TIMER_KEY, DIMENSIONS, TokenManager } from "./token-manager";
+import type { T_DIMENSIONS } from "./token-manager";
 import { createTakeLatestPromiseFn } from "./take-latest-promise";
+import type { CacheManager } from "./cache-manager";
+import { WeakMapCacheManager } from "./weak-map-cache-manager";
+import { IdCacheManager } from "./id-cache-manager";
 
-export { DIMENSIONS, cacheMap, CacheData };
+export { DIMENSIONS } from "./token-manager";
+// Re-export for backward compatibility
+export { CacheData } from "./common";
+export { cacheMap } from "./weak-map-cache-manager";
 
 type Timer = ReturnType<typeof setTimeout>;
 
-function createClearExpiredCache(fn: PromiseFunction, ttl: number) {
+function createClearExpiredCache(cm: CacheManager) {
   let timer: Timer | null = null;
   return function clearExpiredCache() {
     if (timer) {
@@ -15,32 +22,10 @@ function createClearExpiredCache(fn: PromiseFunction, ttl: number) {
     }
     // put operation into micro event loop, so it will not impact the main process
     timer = setTimeout(() => {
-      const fnCache = cacheMap.get(fn);
-      if (!fnCache) {
-        return;
-      }
-      const now = Date.now();
-      fnCache.forEach((value, key) => {
-        if (now - value.timestamp > ttl) {
-          fnCache.delete(key);
-        }
-      });
+      cm.clearExpired();
     });
   };
 }
-
-function clearCache(fn: PromiseFunction, key?: string) {
-  const fnCache = cacheMap.get(fn);
-  if (!fnCache) {
-    return;
-  }
-  if (key) {
-    fnCache.delete(key);
-  } else {
-    fnCache.clear();
-  }
-}
-
 
 
 
@@ -116,6 +101,17 @@ export interface CreateAsyncOptions<
    * @param error The error if update failed (undefined if successful)
    */
   onBackgroundUpdate?: (data: PickPromiseType<F> | undefined, error: AsyncError | undefined) => void;
+  /**
+   * Stable cache identifier. When provided, the cache uses a module-level store
+   * keyed by this id instead of the default WeakMap<fnProxy> strategy.
+   * This allows cache to survive component mount/unmount cycles (e.g. page navigation).
+   */
+  id?: string;
+  /**
+   * Custom cache manager instance. When provided, all cache operations are
+   * delegated to this manager. Takes precedence over `id`.
+   */
+  cacheManager?: CacheManager<PickPromiseType<F>>;
 }
 
 export interface ClearCache<F extends PromiseFunction> {
@@ -173,11 +169,19 @@ export function createAsync<F extends PromiseFunction>(
     swr = false,
     onBackgroundUpdateStart,
     onBackgroundUpdate,
+    id,
+    cacheManager: customCacheManager,
   }: CreateAsyncOptions<F> = {}
 ): ReturnTypeOfCreateAsync<F> {
   let timerMapOfDebounce = new Map<string | symbol, any>();
   let promiseHandlerMap = new Map<string | symbol, Promise<any>>();
-  const clearExpiredCache = createClearExpiredCache(fnProxy, ttl);
+
+  // Pick cache strategy: custom > id-based > default (fnProxy-based).
+  // For the default strategy we need fnProxy first, so we defer creation.
+  let cacheManager: CacheManager<PickPromiseType<F>> | null =
+    customCacheManager || (id ? new IdCacheManager<PickPromiseType<F>>(id, ttl) : null);
+
+  let clearExpiredCache: () => void;
 
   let listener: {
     resolve: (arg?: any) => any;
@@ -222,10 +226,9 @@ export function createAsync<F extends PromiseFunction>(
   function fnProxy(...params: Parameters<F>): ReturnType<F> {
     const key = genKeyByParams(params);
     if (ttl !== -1) {
-      // Check and delete expired caches on each call to prevent out of memory error
       clearExpiredCache();
     }
-    const cache = getCache({ttl, fn: fnProxy, key, cacheCapacity});
+    const cache = cacheManager!.get(key);
 
     // Stale-while-revalidate pattern
     if (swr && cache) {
@@ -307,18 +310,8 @@ export function createAsync<F extends PromiseFunction>(
             const runFnPromise = finalFn(params);
             return runFnPromise
               .then((res) => {
-                const thisCache = cacheMap.get(fnProxy);
+                cacheManager!.set(key, res as PickPromiseType<F>);
                 const composeRes = new AsyncResolveResult(res);
-                if (
-                  thisCache &&
-                  (ttl !== -1 || cacheCapacity !== -1) &&
-                  thisCache.get(key)?.data !== res
-                ) {
-                  thisCache.set(key, {
-                    data: res,
-                    timestamp: Date.now(),
-                  });
-                }
                 listener.filter(i => {
                   if (debounceDimension === DIMENSIONS.FUNCTION) {
                     return i.token === scopeToken && i.key === DEFAULT_TIMER_KEY;
@@ -372,17 +365,17 @@ export function createAsync<F extends PromiseFunction>(
     }
   }
 
-  cacheMap.set(
-    fnProxy,
-    cacheCapacity === -1
-      ? new Map<string, CacheData>()
-      : new LRU<string, CacheData>(cacheCapacity)
-  );
+  // For the default strategy, create WeakMapCacheManager now that fnProxy exists.
+  if (!cacheManager) {
+    cacheManager = new WeakMapCacheManager<PickPromiseType<F>>(fnProxy, ttl, cacheCapacity);
+  }
+
+  clearExpiredCache = createClearExpiredCache(cacheManager);
 
   function fnClearCache(...params: Parameters<F>): void;
   function fnClearCache(): void;
   function fnClearCache(...params: Parameters<F>) {
-    clearCache(fnProxy, params.length ? genKeyByParams(params) : undefined);
+    cacheManager!.delete(params.length ? genKeyByParams(params) : undefined);
   }
   fnProxy.clearCache = fnClearCache;
   return fnProxy;

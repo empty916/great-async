@@ -4,4 +4,8 @@ export * from './use-async';
 export * from './asyncController';
 export * from './useAsyncFunction';
 export * from './share-loading';
+export * from './cache-manager';
+export * from './weak-map-cache-manager';
+export * from './id-cache-manager';
+export * from './token-manager';
 export * from './take-latest-promise';
