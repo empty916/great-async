@@ -755,6 +755,41 @@ function UserSettings({ userId }: { userId: string }) {
 }
 ```
 
+#### 💾 Persistent Cache Across Mounts
+
+Use the `id` option to make cache survive component mount/unmount cycles. Without `id`, the cache is stored in a WeakMap keyed by the function reference and gets garbage-collected when the component unmounts:
+
+```tsx
+function UserProfile({ userId }: { userId: string }) {
+  // Define the API function
+  const fetchUserProfile = async (id: string) => {
+    const response = await fetch(`/api/users/${id}/profile`);
+    return response.json();
+  };
+
+  // With `id`, the cache persists even when navigating away and back
+  const { data, loading, backgroundUpdating } = useAsync(
+    (id: string = userId) => fetchUserProfile(id),
+    {
+      deps: [userId],
+      id: 'fetchUserProfile', // Stable cache key surviving re-mounts
+      ttl: 5 * 60 * 1000,
+      swr: true,
+    }
+  );
+
+  if (loading) return <div>Loading...</div>;
+  return (
+    <div>
+      <h2>{data?.name}</h2>
+      {backgroundUpdating && <span>Updating...</span>}
+    </div>
+  );
+}
+```
+
+**How it works:** When `id` is provided, `great-async` uses a module-level `IdCacheManager` keyed by this string instead of the default `WeakMap<fnProxy>` strategy. The cache stays alive as long as the module is loaded — navigate away and back, and SWR still returns the cached data instantly without a loading flash.
+
 #### 📦 Default Data
 
 Use `defaultData` to avoid unnecessary null checks and provide fallback values:
@@ -815,6 +850,8 @@ enhancedFn.clearCache(param1, param2);
 | `ttl` | `number` | `-1` | Cache duration in milliseconds |
 | `cacheCapacity` | `number` | `-1` | Maximum cache size (LRU) |
 | `swr` | `boolean` | `false` | Enable stale-while-revalidate |
+| `id` | `string` | — | Stable cache identifier. When provided, the cache uses a module-level store keyed by this id instead of the default WeakMap strategy. This allows cache to survive component mount/unmount cycles |
+| `cacheManager` | `CacheManager<T>` | — | Custom cache manager instance. When provided, all cache operations are delegated to this manager. Takes precedence over `id` |
 
 #### Performance Options
 | Option | Type | Default | Description |
