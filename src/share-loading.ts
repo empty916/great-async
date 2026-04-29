@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 
 // Type definitions
 type LoadingStateCallback = () => void;
@@ -27,6 +27,7 @@ export class ShareLoading {
       const currentCallbacks = this.listeners.get(loadingId) || [];
       const filteredCallbacks = currentCallbacks.filter((cb) => cb !== callback);
       this.listeners.set(loadingId, filteredCallbacks);
+      this.cleanup(loadingId);
     };
   }
   
@@ -125,12 +126,20 @@ export const shareLoading = new ShareLoading();
 
 
 export const useLoadingState = (loadingId: string) => {
-
-  const loadingState = useSyncExternalStore(
-    cb => shareLoading.subscribe(loadingId, cb),
-    () => shareLoading.isLoading(loadingId),
-    () => shareLoading.isLoading(loadingId),
+  const subscribe = useCallback(
+    (cb: LoadingStateCallback) => {
+      if (!loadingId) return () => {};
+      return shareLoading.subscribe(loadingId, cb);
+    },
+    [loadingId]
   );
 
-  return loadingState
+  const getSnapshot = useCallback(() => {
+    if (!loadingId) return false;
+    return shareLoading.isLoading(loadingId);
+  }, [loadingId]);
+
+  const loadingState = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+
+  return loadingState;
 }

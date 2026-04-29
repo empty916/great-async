@@ -163,7 +163,7 @@ test('should share loading state with same loadingId, one of them is not auto', 
             fn();
         }, [])
 
-        if (loading) {
+        if (loading || !data) {
             return <span role="loading2">loading2</span>;
         }
         return (
