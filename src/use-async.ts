@@ -180,9 +180,11 @@ export const useAsync = <F extends PromiseFunction>(
   // When `id` is provided, the cache lives in a module-level IdCacheManager
   // that survives mount/unmount. Check it eagerly so SWR can return data
   // on the very first render without a loading flash.
-  const cacheManagerForState = createAsyncOpts.id
-    ? new IdCacheManager<PickPromiseType<F>>(createAsyncOpts.id, createAsyncOpts.ttl ?? -1)
-    : null;
+  const cacheManagerForState = useMemo(() => {
+    return createAsyncOpts.id
+      ? new IdCacheManager<PickPromiseType<F>>(createAsyncOpts.id, createAsyncOpts.ttl ?? -1)
+      : null;
+  }, [createAsyncOpts.id, createAsyncOpts.ttl]);
 
   const getCachedData = (key: string) => {
     if (!cacheManagerForState) return null;
