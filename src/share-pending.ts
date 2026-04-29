@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 
 // Type definitions
 type PendingStateCallback = () => void;
@@ -27,6 +27,7 @@ export class SharePending {
       const currentCallbacks = this.listeners.get(pendingId) || [];
       const filteredCallbacks = currentCallbacks.filter((cb) => cb !== callback);
       this.listeners.set(pendingId, filteredCallbacks);
+      this.cleanup(pendingId);
     };
   }
   
@@ -125,12 +126,20 @@ export const sharePending = new SharePending();
 
 
 export const usePendingState = (pendingId: string) => {
-
-  const pendingState = useSyncExternalStore(
-    cb => sharePending.subscribe(pendingId, cb),
-    () => sharePending.isPending(pendingId),
-    () => sharePending.isPending(pendingId),
+  const subscribe = useCallback(
+    (cb: PendingStateCallback) => {
+      if (!pendingId) return () => {};
+      return sharePending.subscribe(pendingId, cb);
+    },
+    [pendingId]
   );
 
-  return pendingState
+  const getSnapshot = useCallback(() => {
+    if (!pendingId) return false;
+    return sharePending.isPending(pendingId);
+  }, [pendingId]);
+
+  const pendingState = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+
+  return pendingState;
 }

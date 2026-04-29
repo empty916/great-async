@@ -7,6 +7,7 @@ import type { DependencyList } from "react";
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   useMemo,
@@ -173,7 +174,6 @@ export const useAsync = <F extends PromiseFunction>(
     isMounted: false,
     depsRef: initDeps as DependencyList,
     id: {},
-    inited: false,
     hasIncremented: false,
   });
   const argsRef = useRef({
@@ -232,29 +232,20 @@ export const useAsync = <F extends PromiseFunction>(
     throw new Error("The deps must be an Array!");
   }
 
-  if (!stateRef.current.inited && pendingId) {
-    sharePending.init(pendingId);
-    stateRef.current.inited = true;
-    if(asyncFunctionState.pending) {
-      sharePending.increment(pendingId);
-      stateRef.current.hasIncremented = true;
-    }
-  }
-
-  useEffect(() => {
-    if (!pendingId) return; // Skip shared state management if no pendingId
+  useLayoutEffect(() => {
+    if (!pendingId) return;
 
     if (asyncFunctionState.pending && !stateRef.current.hasIncremented) {
-      sharePending.increment(pendingId); // Only increment when needed
+      sharePending.increment(pendingId);
       stateRef.current.hasIncremented = true;
     } else if (!asyncFunctionState.pending && stateRef.current.hasIncremented) {
-      sharePending.decrement(pendingId); // Correctly handle state change
+      sharePending.decrement(pendingId);
       stateRef.current.hasIncremented = false;
     }
 
     return () => {
       if (stateRef.current.hasIncremented) {
-        sharePending.decrement(pendingId); // Cleanup on unmount
+        sharePending.decrement(pendingId);
         stateRef.current.hasIncremented = false;
       }
     }
