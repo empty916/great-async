@@ -23,24 +23,12 @@ export const shallowEqual = (arr1: DependencyList, arr2: DependencyList) => {
 
 export type AnyFn = (...args: any) => any;
 
-export const SCOPE = {
-  FUNCTION: 0,
-  PARAMETERS: 1,
-} as const;
+// Re-export scope constants from token-manager for backward compatibility
+export { SCOPE, DIMENSIONS, DEFAULT_TIMER_KEY, DEFAULT_SINGLE_KEY, DEFAULT_PROMISE_DEBOUNCE_KEY, TokenManager } from "./token-manager";
+export type { T_SCOPE, T_DIMENSIONS } from "./token-manager";
 
-/**
- * @deprecated Use SCOPE instead. DIMENSIONS will be removed in v3.0.0
- */
-export const DIMENSIONS = SCOPE;
-
-export type T_SCOPE = typeof SCOPE[keyof typeof SCOPE];
-
-/**
- * @deprecated Use T_SCOPE instead. T_DIMENSIONS will be removed in v3.0.0
- */
-export type T_DIMENSIONS = T_SCOPE;
-
-
+// Re-export cache utilities from weak-map-cache-manager for backward compatibility
+export { cacheMap, getCache } from "./weak-map-cache-manager";
 
 export function defaultGenKeyByParams(params: any[]) {
 	try {
@@ -50,49 +38,12 @@ export function defaultGenKeyByParams(params: any[]) {
 	  return '[]'
 	}
   }
-  
+
 
 export interface CacheData {
 	timestamp: number;
 	data: any;
   }
-
-export const cacheMap =
-  typeof WeakMap !== "undefined"
-    ? new WeakMap<AnyFn, Map<string, CacheData>>()
-    : new Map<AnyFn, Map<string, CacheData>>();
-
-export function getCache({
-	ttl, cacheCapacity,
-	fn,
-	key
-}: {
-	ttl: number;
-	cacheCapacity: number;
-	fn: AnyFn;
-	key: string
-}) {
-	if (ttl !== -1) {
-	  // Check and delete expired caches on each call to prevent out of memory error
-	  const thisCache = cacheMap.get(fn);
-	  const cacheObj = thisCache?.get(key);
-	  if (cacheObj && Date.now() - cacheObj.timestamp < ttl) {
-		return {
-			value: cacheObj.data
-		};
-	  }
-	}
-	if (cacheCapacity !== -1) {
-	  const thisCache = cacheMap.get(fn);
-	  const cacheObj = thisCache?.get(key);
-	  if (cacheObj) {
-		return {
-			value: cacheObj.data
-		};
-	  }
-	}
-	return null;
-}
 
 export class AsyncResolveToken {
   value: symbol;
@@ -106,40 +57,4 @@ export class AsyncResolveResult<T = any> {
   constructor(r: T) {
     this.result = r;
   }
-}
-
-
-export const DEFAULT_TIMER_KEY = Symbol('DEFAULT_TIMER_KEY');
-export const DEFAULT_SINGLE_KEY = Symbol('DEFAULT_SINGLE_KEY');
-export const DEFAULT_PROMISE_DEBOUNCE_KEY = Symbol('DEFAULT_PROMISE_DEBOUNCE_KEY');
-
-
-export class TokenManager {
-	scope: T_SCOPE;
-	token = new Map<string|symbol, symbol>();
-	constructor(s: T_SCOPE) {
-		this.scope = s;
-	}
-	getKey(key?: string|symbol) {
-		if (this.scope === SCOPE.PARAMETERS) {
-			return key || DEFAULT_TIMER_KEY;
-		}
-		return DEFAULT_TIMER_KEY;
-	}
-	initToken(key?: string|symbol) {
-		this.token.set(this.getKey(key), Symbol('async_token'));
-	}
-	getToken(key?: string|symbol) {
-		if (!this.token.has(this.getKey(key))) {
-			this.initToken(key);
-		}
-		return this.token.get(this.getKey(key))!;
-	}
-	refresh(key?: string|symbol) {
-		this.initToken(key);
-		return this.token.get(this.getKey(key));
-	}
-	remove(key?: string|symbol) {
-		this.token.delete(this.getKey(key));
-	}
 }

@@ -12,8 +12,10 @@ import {
   useMemo,
 } from "react";
 import type { PickPromiseType, PromiseFunction, AsyncError } from "./common";
-import { shallowEqual, getCache, defaultGenKeyByParams } from "./common";
+import { shallowEqual, defaultGenKeyByParams } from "./common";
 import { sharePending, usePendingState } from "./share-pending";
+import { IdCacheManager } from "./id-cache-manager";
+import { getCache } from "./weak-map-cache-manager";
 
 export interface AsyncFunctionState<T> {
   pending: boolean;
@@ -183,14 +185,40 @@ export const useAsync = <F extends PromiseFunction>(
     defaultData: defaultData as PickPromiseType<F> | null,
   });
   const [createAsyncOpts] = useState(createAsyncOptions);
+
+  // When `id` is provided, the cache lives in a module-level IdCacheManager
+  // that survives mount/unmount. Check it eagerly so SWR can return data
+  // on the very first render without a pending flash.
+  const cacheManagerForState = useMemo(() => {
+    return createAsyncOpts.id
+      ? new IdCacheManager<PickPromiseType<F>>(createAsyncOpts.id, createAsyncOpts.cache?.ttl ?? -1)
+      : null;
+  }, [createAsyncOpts.id, createAsyncOpts.cache?.ttl]);
+
+  const getCachedData = (key: string) => {
+    if (!cacheManagerForState) return null;
+    return cacheManagerForState.get(key);
+  };
+
+  const defaultCacheKey = (createAsyncOpts.cache?.keyGenerator || defaultGenKeyByParams)([] as any);
+
   const [asyncFunctionState, setAsyncFunctionState] = useState<
     AsyncFunctionState<PickPromiseType<F> | null>
-  >({
-    pending: auto === true,
-    loading: auto === true, // Deprecated but kept for compatibility
-    error: null,
-    data: defaultData,
+  >(() => {
+    if (swr) {
+      const cached = getCachedData(defaultCacheKey);
+      if (cached) {
+        return { pending: false, loading: false, error: null, data: cached.value };
+      }
+    }
+    return {
+      pending: auto === true,
+      loading: auto === true, // Deprecated but kept for compatibility
+      error: null,
+      data: defaultData,
+    };
   });
+
   const [backgroundUpdating, setBackgroundUpdating] = useState(false);
 
   argsRef.current.asyncFn = asyncFn;
@@ -298,15 +326,17 @@ export const useAsync = <F extends PromiseFunction>(
       return async (...args: Parameters<F>) => {
         await Promise.resolve();
 
-        // Check if SWR has valid cache — if so, fnProxy returns cached data immediately
-        // and we should not set pending=true to avoid a brief pending flash
+        // Check if SWR has valid cache — consults both legacy cacheMap
+        // (keyed by fnProxy) and IdCacheManager (keyed by opts.id).
         const cacheKey = (createAsyncOpts.cache?.keyGenerator || defaultGenKeyByParams)(args);
-        const hasSWRCache = swr && !!getCache({
-          ttl: createAsyncOpts.cache?.ttl ?? -1,
-          cacheCapacity: createAsyncOpts.cache?.capacity ?? -1,
-          fn: fnProxy,
-          key: cacheKey,
-        });
+        const hasSWRCache = swr && !!(
+          getCache({
+            ttl: createAsyncOpts.cache?.ttl ?? -1,
+            cacheCapacity: createAsyncOpts.cache?.capacity ?? -1,
+            fn: fnProxy,
+            key: cacheKey,
+          }) || getCachedData(cacheKey)
+        );
 
         if ((createAsyncOpts.debounce?.time || -1) === -1 && !hasSWRCache) {
           setAsyncFunctionState((ov) => {

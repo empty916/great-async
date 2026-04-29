@@ -3,3 +3,7 @@ export * from './create-async';
 export * from './use-async';
 export * from './share-pending';
 export * from './take-latest-promise';
+export * from './cache-manager';
+export * from './weak-map-cache-manager';
+export * from './id-cache-manager';
+export * from './token-manager';
