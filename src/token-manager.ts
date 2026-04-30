@@ -33,7 +33,7 @@ export type T_SCOPE = SCOPE;
 /**
  * @deprecated Use `SCOPE` instead. Will be removed in v3.0.0.
  */
-export type T_DIMENSIONS = SCOPE;
+export type T_DIMENSIONS = DIMENSIONS;
 
 // Internal symbols used by createAsync to mark the SHARED-scope slot.
 // Not part of the public API — see src/index.ts (only re-exports the public bits).
