@@ -16,12 +16,12 @@ import type { PickPromiseType, PromiseFunction, AsyncError } from "./common";
 import { shallowEqual, defaultGenKeyByParams } from "./common";
 import { sharePending, usePendingState } from "./share-pending";
 import { IdCacheManager } from "./id-cache-manager";
-import { getCache } from "./weak-map-cache-manager";
+import { WeakMapCacheManager } from "./weak-map-cache-manager";
 
 export interface AsyncFunctionState<T> {
   pending: boolean;
   /**
-   * @deprecated Use pending instead. Will be removed in v3.0.0
+   * Alias for `pending`. Both names refer to the same in-flight state.
    */
   loading: boolean;
   error: AsyncError | null;
@@ -49,11 +49,20 @@ export interface UseAsyncOptions<F extends PromiseFunction>
    */
   pendingId?: string;
   /**
-   * Default value for data before the async function resolves.
-   * Also used as the data value when the async function rejects.
+   * Value used for `data` before the async function first resolves
+   * (or while the very first call is pending).
    * @default null
    */
-  defaultData?: PickPromiseType<F>;
+  initialData?: PickPromiseType<F>;
+  /**
+   * Value used for `data` when the async function rejects. When omitted,
+   * the previously resolved `data` is preserved on error (so a transient
+   * failure does not blank out the UI).
+   *
+   * Pass `null` (or any other concrete value) to explicitly reset `data`
+   * on every error.
+   */
+  fallbackData?: PickPromiseType<F> | null;
 }
 
 export type UseAsyncReturn<F extends PromiseFunction> =
@@ -67,8 +76,7 @@ export type UseAsyncReturn<F extends PromiseFunction> =
        */
       pending: true;
       /**
-       * promise's loading status
-       * @deprecated Use pending instead. Will be removed in v3.0.0
+       * Alias for `pending`. Both names refer to the same in-flight state.
        */
       loading: true;
       /**
@@ -100,8 +108,7 @@ export type UseAsyncReturn<F extends PromiseFunction> =
        */
       pending: false;
       /**
-       * promise's loading status
-       * @deprecated Use pending instead. Will be removed in v3.0.0
+       * Alias for `pending`. Both names refer to the same in-flight state.
        */
       loading: false;
       error: AsyncError | null;
@@ -163,12 +170,18 @@ export const useAsync = <F extends PromiseFunction>(
     deps,
     auto = true,
     pendingId,
-    defaultData = null,
+    initialData,
+    fallbackData,
     ...createAsyncOptions
   } = opts;
 
+  const resolvedInitial: PickPromiseType<F> | null =
+    initialData !== undefined ? initialData : null;
+  // `undefined` here means "keep last data on error".
+  const resolvedFallback: PickPromiseType<F> | null | undefined = fallbackData;
+
   const { swr = false } = createAsyncOptions.cache || {};
-  const { onBackgroundUpdate, } = createAsyncOptions.hooks || {};
+  const { onBackgroundUpdate, } = createAsyncOptions.lifecycle || {};
 
   const stateRef = useRef({
     isMounted: false,
@@ -182,18 +195,35 @@ export const useAsync = <F extends PromiseFunction>(
     auto: auto,
     loadingId: '',
     onBackgroundUpdate: onBackgroundUpdate,
-    defaultData: defaultData as PickPromiseType<F> | null,
+    fallbackData: resolvedFallback,
   });
   const [createAsyncOpts] = useState(createAsyncOptions);
 
-  // When `id` is provided, the cache lives in a module-level IdCacheManager
-  // that survives mount/unmount. Check it eagerly so SWR can return data
-  // on the very first render without a pending flash.
+  // When `cache.manager` or `id` is provided, the cache lives outside of
+  // createAsync (in user-supplied manager / module-level IdCacheManager) and
+  // survives mount/unmount. Check it eagerly so SWR can return data on the
+  // very first render without a pending flash.
+  //
+  // For the default WeakMap mode this stays null — the WeakMap entry is
+  // keyed by the not-yet-created fnProxy, so the SWR cache check has to
+  // happen later via WeakMapCacheManager.peek.
   const cacheManagerForState = useMemo(() => {
+    if (createAsyncOpts.cache?.manager) {
+      return createAsyncOpts.cache.manager;
+    }
     return createAsyncOpts.id
-      ? new IdCacheManager<PickPromiseType<F>>(createAsyncOpts.id, createAsyncOpts.cache?.ttl ?? -1)
+      ? IdCacheManager.forId<PickPromiseType<F>>(
+          createAsyncOpts.id,
+          createAsyncOpts.cache?.ttl ?? -1,
+          createAsyncOpts.cache?.capacity ?? -1,
+        )
       : null;
-  }, [createAsyncOpts.id, createAsyncOpts.cache?.ttl]);
+  }, [
+    createAsyncOpts.cache?.manager,
+    createAsyncOpts.id,
+    createAsyncOpts.cache?.ttl,
+    createAsyncOpts.cache?.capacity,
+  ]);
 
   const getCachedData = (key: string) => {
     if (!cacheManagerForState) return null;
@@ -213,9 +243,9 @@ export const useAsync = <F extends PromiseFunction>(
     }
     return {
       pending: auto === true,
-      loading: auto === true, // Deprecated but kept for compatibility
+      loading: auto === true,
       error: null,
-      data: defaultData,
+      data: resolvedInitial,
     };
   });
 
@@ -226,7 +256,7 @@ export const useAsync = <F extends PromiseFunction>(
   argsRef.current.deps = deps;
   argsRef.current.loadingId = pendingId || '';
   argsRef.current.onBackgroundUpdate = onBackgroundUpdate;
-  argsRef.current.defaultData = defaultData;
+  argsRef.current.fallbackData = resolvedFallback;
 
   if (deps && !Array.isArray(deps)) {
     throw new Error("The deps must be an Array!");
@@ -263,13 +293,13 @@ export const useAsync = <F extends PromiseFunction>(
       cache: {
         ...createAsyncOpts.cache,
       },
-      hooks: {
-        ...createAsyncOpts.hooks,
+      lifecycle: {
+        ...createAsyncOpts.lifecycle,
         onBackgroundUpdateStart: swr ? (cachedData: PickPromiseType<F>) => {
           // Background update is starting, set backgroundUpdating state
           setBackgroundUpdating(true);
-          createAsyncOpts.hooks?.onBackgroundUpdateStart?.(cachedData);
-        } : createAsyncOpts.hooks?.onBackgroundUpdateStart,
+          createAsyncOpts.lifecycle?.onBackgroundUpdateStart?.(cachedData);
+        } : createAsyncOpts.lifecycle?.onBackgroundUpdateStart,
         onBackgroundUpdate: swr ? (data: PickPromiseType<F> | undefined, error: AsyncError | undefined) => {
           // Background update completed, update data and clear background updating state
           if (data !== undefined) {
@@ -287,11 +317,11 @@ export const useAsync = <F extends PromiseFunction>(
           }
           setBackgroundUpdating(false);
           argsRef.current.onBackgroundUpdate?.(data, error);
-          createAsyncOpts.hooks?.onBackgroundUpdate?.(data, error);
-        } : createAsyncOpts.hooks?.onBackgroundUpdate,
+          createAsyncOpts.lifecycle?.onBackgroundUpdate?.(data, error);
+        } : createAsyncOpts.lifecycle?.onBackgroundUpdate,
         beforeRun:
           createAsyncOpts.debounce?.time !== -1 ||
-          createAsyncOpts.hooks?.beforeRun
+          createAsyncOpts.lifecycle?.beforeRun
             ? () => {
                 setAsyncFunctionState((ov) => {
                   if (ov.pending) {
@@ -300,10 +330,10 @@ export const useAsync = <F extends PromiseFunction>(
                   return {
                     ...ov,
                     pending: true,
-                    loading: true, // Deprecated but kept for compatibility
+                    loading: true,
                   };
                 });
-                createAsyncOpts.hooks?.beforeRun?.();
+                createAsyncOpts.lifecycle?.beforeRun?.();
               }
             : undefined,
       }
@@ -317,16 +347,18 @@ export const useAsync = <F extends PromiseFunction>(
       return async (...args: Parameters<F>) => {
         await Promise.resolve();
 
-        // Check if SWR has valid cache — consults both legacy cacheMap
-        // (keyed by fnProxy) and IdCacheManager (keyed by opts.id).
+        // Check if SWR has valid cache. Two complementary sources:
+        // 1. cacheManagerForState — covers `cacheManager` and `id` modes.
+        // 2. WeakMapCacheManager.peek — covers the default WeakMap mode,
+        //    which is keyed by fnProxy and only resolvable after fnProxy
+        //    has been constructed.
         const cacheKey = (createAsyncOpts.cache?.keyGenerator || defaultGenKeyByParams)(args);
         const hasSWRCache = swr && !!(
-          getCache({
+          getCachedData(cacheKey)
+          || WeakMapCacheManager.peek(fnProxy, cacheKey, {
             ttl: createAsyncOpts.cache?.ttl ?? -1,
             cacheCapacity: createAsyncOpts.cache?.capacity ?? -1,
-            fn: fnProxy,
-            key: cacheKey,
-          }) || getCachedData(cacheKey)
+          })
         );
 
         if ((createAsyncOpts.debounce?.time || -1) === -1 && !hasSWRCache) {
@@ -337,7 +369,7 @@ export const useAsync = <F extends PromiseFunction>(
             return {
               ...ov,
               pending: true,
-              loading: true, // Deprecated but kept for compatibility
+              loading: true,
             };
           });
         }
@@ -350,7 +382,7 @@ export const useAsync = <F extends PromiseFunction>(
             }
             return {
               pending: false,
-              loading: false, // Deprecated but kept for compatibility
+              loading: false,
               error: null,
               data: res,
             };
@@ -358,15 +390,18 @@ export const useAsync = <F extends PromiseFunction>(
           return res;
         } catch (err) {
           setAsyncFunctionState((ov) => {
-            const fallbackData = argsRef.current.defaultData;
-            if (!ov.pending && ov.error === err && ov.data === fallbackData) {
+            // When fallbackData is undefined, keep the previous data — a
+            // transient error should not blank out the UI.
+            const fb = argsRef.current.fallbackData;
+            const newData = fb !== undefined ? fb : ov.data;
+            if (!ov.pending && ov.error === err && ov.data === newData) {
               return ov;
             }
             return {
               error: err,
               pending: false,
-              loading: false, // Deprecated but kept for compatibility
-              data: fallbackData,
+              loading: false,
+              data: newData,
             };
           });
           if (throwError) {
@@ -417,7 +452,7 @@ export const useAsync = <F extends PromiseFunction>(
   return {
     data: asyncFunctionState.data,
     pending: composedPendingState,
-    loading: composedPendingState, // Deprecated but kept for compatibility
+    loading: composedPendingState,
     error: asyncFunctionState.error,
     backgroundUpdating,
     run: manualRunFn,

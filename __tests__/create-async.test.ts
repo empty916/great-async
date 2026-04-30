@@ -1,5 +1,7 @@
-import { SCOPE, cacheMap, createAsync } from '../src';
+import { SCOPE, createAsync, WeakMapCacheManager } from '../src';
 import { sleep } from '../src/utils';
+
+const { cacheMap } = WeakMapCacheManager;
 
 
 test('normal', async () => {
@@ -64,7 +66,7 @@ test('single with parameter dimension 1', async () => {
 			age: 10
 		}
 	}, {
-		single: { enabled: true, scope: SCOPE.PARAMETERS }
+		single: { enabled: true, scope: SCOPE.KEYED }
 	});
 	
 	const queue: any[] = [];
@@ -92,7 +94,7 @@ test('single with parameter dimension 2', async () => {
 			age: 10
 		}
 	}, {
-		single: { enabled: true, scope: SCOPE.PARAMETERS }
+		single: { enabled: true, scope: SCOPE.KEYED }
 	});
 	
 	const queue: any[] = [];
@@ -207,7 +209,7 @@ test('debounce time with parameter dimension 1', async () => {
 			age: 10
 		}
 	}, {
-		debounce: { time: 90, scope: SCOPE.PARAMETERS }
+		debounce: { time: 90, scope: SCOPE.KEYED }
 	});
 	
 	const queue: any[] = [];
@@ -234,7 +236,7 @@ test('debounce time with parameter dimension 2', async () => {
 			age: 10
 		}
 	}, {
-		debounce: { time: 90, scope: SCOPE.PARAMETERS }
+		debounce: { time: 90, scope: SCOPE.KEYED }
 	});
 	
 	const queue: any[] = [];

@@ -1,5 +1,9 @@
 import type { DependencyList } from "react";
 
+export const isDev = typeof process !== 'undefined'
+  && typeof process.env !== 'undefined'
+  && process.env.NODE_ENV !== 'production';
+
 export type PromiseFunction = (...args: any) => Promise<any>;
 
 /**
@@ -23,12 +27,10 @@ export const shallowEqual = (arr1: DependencyList, arr2: DependencyList) => {
 
 export type AnyFn = (...args: any) => any;
 
-// Re-export scope constants from token-manager for backward compatibility
-export { SCOPE, DIMENSIONS, DEFAULT_TIMER_KEY, DEFAULT_SINGLE_KEY, DEFAULT_PROMISE_DEBOUNCE_KEY, TokenManager } from "./token-manager";
+// Re-export scope constants from token-manager for backward compatibility.
+// DEFAULT_*_KEY symbols are internal — not surfaced here.
+export { SCOPE, DIMENSIONS, TokenManager } from "./token-manager";
 export type { T_SCOPE, T_DIMENSIONS } from "./token-manager";
-
-// Re-export cache utilities from weak-map-cache-manager for backward compatibility
-export { cacheMap, getCache } from "./weak-map-cache-manager";
 
 export function defaultGenKeyByParams(params: any[]) {
 	try {

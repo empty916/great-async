@@ -1,5 +1,5 @@
 import type { PickPromiseType, PromiseFunction, AsyncError } from "./common";
-import { AsyncResolveResult, AsyncResolveToken, defaultGenKeyByParams } from "./common";
+import { AsyncResolveResult, AsyncResolveToken, defaultGenKeyByParams, isDev } from "./common";
 import { DEFAULT_PROMISE_DEBOUNCE_KEY, DEFAULT_SINGLE_KEY, DEFAULT_TIMER_KEY, SCOPE, DIMENSIONS, TokenManager } from "./token-manager";
 import { createTakeLatestPromiseFn } from "./take-latest-promise";
 import type { CacheManager } from "./cache-manager";
@@ -9,18 +9,18 @@ import { IdCacheManager } from "./id-cache-manager";
 export { SCOPE, DIMENSIONS } from "./token-manager";
 // Re-export for backward compatibility
 export { CacheData } from "./common";
-export { cacheMap } from "./weak-map-cache-manager";
 
 type Timer = ReturnType<typeof setTimeout>;
 
-function createClearExpiredCache(cm: CacheManager) {
+
+function createClearExpiredCache(getCm: () => CacheManager) {
   let timer: Timer | null = null;
   return function clearExpiredCache() {
     if (timer) {
       clearTimeout(timer);
     }
     timer = setTimeout(() => {
-      cm.clearExpired();
+      getCm().clearExpired?.();
     });
   };
 }
@@ -47,6 +47,18 @@ export interface CacheConfig<F extends PromiseFunction = PromiseFunction> {
    * @default false
    */
   swr?: boolean;
+  /**
+   * Custom cache manager instance. When provided, all cache operations are
+   * delegated to this manager.
+   *
+   * - Takes precedence over the top-level `id` option (which is ignored,
+   *   with a dev warning).
+   * - The `cache.ttl` and `cache.capacity` options become the manager's
+   *   responsibility: createAsync invokes `clearExpired()` on every call but
+   *   does not interpret these options. The manager is fully responsible for
+   *   expiration, capacity, and any other policy.
+   */
+  manager?: CacheManager<PickPromiseType<F>>;
 }
 
 // Debounce configuration group
@@ -60,7 +72,7 @@ export interface DebounceConfig {
    * Debounce scope
    * - FUNCTION: Debounce ignores parameters
    * - PARAMETERS: Debounce per unique parameters
-   * @default SCOPE.FUNCTION
+   * @default SCOPE.SHARED
    */
   scope?: SCOPE;
   /**
@@ -82,13 +94,13 @@ export interface SingleConfig {
    * Single mode scope
    * - FUNCTION: Single mode ignores parameters
    * - PARAMETERS: Single mode per unique parameters
-   * @default SCOPE.FUNCTION
+   * @default SCOPE.SHARED
    */
   scope?: SCOPE;
 }
 
-// Lifecycle hooks group
-export interface HooksConfig<F extends PromiseFunction = PromiseFunction> {
+// Lifecycle callbacks group
+export interface LifecycleConfig<F extends PromiseFunction = PromiseFunction> {
   /**
    * Callback executed before function runs
    */
@@ -193,20 +205,23 @@ export interface CreateAsyncOptions<
    */
   retry?: (error: AsyncError, currentRetryCount: number) => boolean;
   /**
-   * Lifecycle hooks
+   * Lifecycle callbacks (beforeRun, onBackgroundUpdate*).
    */
-  hooks?: HooksConfig<F>;
+  lifecycle?: LifecycleConfig<F>;
   /**
-   * Stable cache identifier. When provided, the cache uses a module-level store
-   * keyed by this id instead of the default WeakMap<fnProxy> strategy.
-   * This allows cache to survive component mount/unmount cycles.
+   * Stable identifier for the underlying cache store. Kept at top level
+   * because it can also be useful beyond `cache.*` (e.g. for diagnostics or
+   * cross-store coordination).
+   *
+   * When provided and no `cache.manager` is set, cache uses a module-level
+   * store keyed by this id instead of the default WeakMap<fnProxy> strategy
+   * — entries survive component mount/unmount cycles.
+   *
+   * Caching is OFF by default — you must also set `cache.ttl` or
+   * `cache.capacity` for entries to be retained, matching the default
+   * (WeakMap) strategy.
    */
   id?: string;
-  /**
-   * Custom cache manager instance. When provided, all cache operations are
-   * delegated to this manager. Takes precedence over `id`.
-   */
-  cacheManager?: CacheManager<PickPromiseType<F>>;
 }
 
 export interface ClearCache<F extends PromiseFunction> {
@@ -227,7 +242,8 @@ function normalizeLegacyOptions<F extends PromiseFunction>(
   options: CreateAsyncOptions<F> | LegacyCreateAsyncOptions<F>
 ): CreateAsyncOptions<F> {
   // If it's already in the new format, return as-is
-  if ('cache' in options || 'debounce' in options || 'single' in options || 'hooks' in options || 'retry' in options) {
+  if ('cache' in options || 'debounce' in options || 'single' in options
+    || 'lifecycle' in options || 'retry' in options) {
     return options as CreateAsyncOptions<F>;
   }
 
@@ -283,14 +299,14 @@ function normalizeLegacyOptions<F extends PromiseFunction>(
     }
   }
 
-  // Convert hooks options
+  // Convert lifecycle options
   if (legacyOptions.beforeRun !== undefined ||
       legacyOptions.onBackgroundUpdateStart !== undefined ||
       legacyOptions.onBackgroundUpdate !== undefined) {
-    normalizedOptions.hooks = {};
-    if (legacyOptions.beforeRun !== undefined) normalizedOptions.hooks.beforeRun = legacyOptions.beforeRun;
-    if (legacyOptions.onBackgroundUpdateStart !== undefined) normalizedOptions.hooks.onBackgroundUpdateStart = legacyOptions.onBackgroundUpdateStart;
-    if (legacyOptions.onBackgroundUpdate !== undefined) normalizedOptions.hooks.onBackgroundUpdate = legacyOptions.onBackgroundUpdate;
+    normalizedOptions.lifecycle = {};
+    if (legacyOptions.beforeRun !== undefined) normalizedOptions.lifecycle.beforeRun = legacyOptions.beforeRun;
+    if (legacyOptions.onBackgroundUpdateStart !== undefined) normalizedOptions.lifecycle.onBackgroundUpdateStart = legacyOptions.onBackgroundUpdateStart;
+    if (legacyOptions.onBackgroundUpdate !== undefined) normalizedOptions.lifecycle.onBackgroundUpdate = legacyOptions.onBackgroundUpdate;
   }
 
   return normalizedOptions;
@@ -359,9 +375,8 @@ export function createAsync<F extends PromiseFunction>(
     debounce = {},
     single = {},
     retry,
-    hooks = {},
+    lifecycle = {},
     id,
-    cacheManager: customCacheManager,
   } = normalizedOptions;
 
   // Cache configuration with defaults
@@ -369,41 +384,51 @@ export function createAsync<F extends PromiseFunction>(
     ttl = -1,
     capacity: cacheCapacity = -1,
     keyGenerator: genKeyByParams = defaultGenKeyByParams,
-    swr = false
+    swr = false,
+    manager: customCacheManager,
   } = cache;
 
   // Debounce configuration with defaults
   const {
     time: debounceTime = -1,
-    scope: debounceDimension = SCOPE.FUNCTION,
+    scope: debounceDimension = SCOPE.SHARED,
     takeLatest = false
   } = debounce;
 
   // Single configuration with defaults
   const {
     enabled: singleEnabled = false,
-    scope: singleDimension = SCOPE.FUNCTION
+    scope: singleDimension = SCOPE.SHARED
   } = single;
 
-  // Hooks configuration with defaults
+  // Lifecycle configuration with defaults
   const {
     beforeRun,
     onBackgroundUpdateStart,
     onBackgroundUpdate
-  } = hooks;
+  } = lifecycle;
 
   // Default retry strategy
   const retryStrategy = retry || (() => false);
   let timerMapOfDebounce = new Map<string | symbol, any>();
   let promiseHandlerMap = new Map<string | symbol, Promise<any>>();
 
-  // Pick cache strategy: custom > id-based > default (fnProxy-based).
-  // For the default strategy we need fnProxy first, so we defer creation.
-  let cacheManager: CacheManager<PickPromiseType<F>> | null =
-    (customCacheManager as CacheManager<PickPromiseType<F>> | undefined)
-    || (id ? new IdCacheManager<PickPromiseType<F>>(id, ttl) : null);
+  if (isDev && customCacheManager && id) {
+    console.warn(
+      '[great-async] Both `cache.manager` and `id` were provided. ' +
+      '`id` will be ignored because `cache.manager` takes precedence.'
+    );
+  }
 
-  let clearExpiredCache: () => void;
+  // Pick cache strategy: custom > id-based > default (fnProxy-based).
+  // For the default strategy we need fnProxy first, so we defer creation
+  // and access the manager through a thunk inside fnProxy.
+  let resolvedManager: CacheManager<PickPromiseType<F>> | null =
+    (customCacheManager as CacheManager<PickPromiseType<F>> | undefined)
+    || (id ? IdCacheManager.forId<PickPromiseType<F>>(id, ttl, cacheCapacity) : null);
+
+  const getCacheManager = (): CacheManager<PickPromiseType<F>> => resolvedManager!;
+  const clearExpiredCache = createClearExpiredCache(() => resolvedManager!);
 
   let listener: {
     resolve: (arg?: any) => any;
@@ -433,9 +458,9 @@ export function createAsync<F extends PromiseFunction>(
   let finalFn = retryFn;
 
   if (takeLatest) {
-    if (debounceDimension === SCOPE.FUNCTION) {
+    if (debounceDimension === SCOPE.SHARED) {
       finalFn = createTakeLatestPromiseFn(retryFn as any, () => DEFAULT_PROMISE_DEBOUNCE_KEY);
-    } else if (debounceDimension === SCOPE.PARAMETERS) {
+    } else if (debounceDimension === SCOPE.KEYED) {
       finalFn = createTakeLatestPromiseFn(retryFn as any, genKeyByParams, true);
     }
   }
@@ -444,11 +469,9 @@ export function createAsync<F extends PromiseFunction>(
 
   function fnProxy(...params: Parameters<F>): ReturnType<F> {
     const key = genKeyByParams(params);
-    if (ttl !== -1) {
-      // Check and delete expired caches on each call to prevent out of memory error
-      clearExpiredCache();
-    }
-    const cache = cacheManager!.get(key);
+    // Each manager decides for itself whether clearing is a no-op.
+    clearExpiredCache();
+    const cache = getCacheManager().get(key);
 
     // Stale-while-revalidate pattern
     if (swr && cache) {
@@ -486,10 +509,10 @@ export function createAsync<F extends PromiseFunction>(
     // but without cache/SWR handling. Used by both the normal path and SWR background updates.
     function executeAsync(): ReturnType<F> {
       if (singleEnabled && debounceTime === -1) {
-        if (singleDimension === SCOPE.FUNCTION && promiseHandlerMap.get(DEFAULT_SINGLE_KEY)) {
+        if (singleDimension === SCOPE.SHARED && promiseHandlerMap.get(DEFAULT_SINGLE_KEY)) {
           return promiseHandlerMap.get(DEFAULT_SINGLE_KEY)! as ReturnType<F>;
         }
-        if (singleDimension === SCOPE.PARAMETERS && promiseHandlerMap.get(key)) {
+        if (singleDimension === SCOPE.KEYED && promiseHandlerMap.get(key)) {
           return promiseHandlerMap.get(key)! as ReturnType<F>;
         }
       }
@@ -504,16 +527,16 @@ export function createAsync<F extends PromiseFunction>(
           resolve,
           reject,
           token: tm.getToken(key),
-          key: debounceDimension === SCOPE.FUNCTION ? DEFAULT_TIMER_KEY : key,
+          key: debounceDimension === SCOPE.SHARED ? DEFAULT_TIMER_KEY : key,
         });
-        if (debounceDimension === SCOPE.FUNCTION) {
+        if (debounceDimension === SCOPE.SHARED) {
           clearTimeout(timerMapOfDebounce.get(DEFAULT_TIMER_KEY));
           timerMapOfDebounce.set(DEFAULT_TIMER_KEY, setTimeout(() => {
             resolve(new AsyncResolveToken(tm.getToken()));
             tm.refresh();
           }, debounceTime));
         }
-        if (debounceDimension === SCOPE.PARAMETERS) {
+        if (debounceDimension === SCOPE.KEYED) {
           clearTimeout(timerMapOfDebounce.get(key));
           timerMapOfDebounce.set(key, setTimeout(() => {
             resolve(new AsyncResolveToken(tm.getToken(key)));
@@ -530,10 +553,10 @@ export function createAsync<F extends PromiseFunction>(
             const runFnPromise = finalFn(params);
             return runFnPromise
               .then((res) => {
-                cacheManager!.set(key, res as PickPromiseType<F>);
+                getCacheManager().set(key, res as PickPromiseType<F>);
                 const composeRes = new AsyncResolveResult(res);
                 listener.filter(i => {
-                  if (debounceDimension === SCOPE.FUNCTION) {
+                  if (debounceDimension === SCOPE.SHARED) {
                     return i.token === scopeToken && i.key === DEFAULT_TIMER_KEY;
                   }
                   return i.token === scopeToken && i.key === key;
@@ -544,7 +567,7 @@ export function createAsync<F extends PromiseFunction>(
               })
               .catch((e) => {
                 listener.filter(i => {
-                  if (debounceDimension === SCOPE.FUNCTION) {
+                  if (debounceDimension === SCOPE.SHARED) {
                     return i.token === scopeToken && i.key === DEFAULT_TIMER_KEY;
                   }
                   return i.token === scopeToken && i.key === key;
@@ -555,7 +578,7 @@ export function createAsync<F extends PromiseFunction>(
                 throw e;
               }).finally(() => {
                 listener = listener.filter(i => {
-                  if (debounceDimension === SCOPE.FUNCTION) {
+                  if (debounceDimension === SCOPE.SHARED) {
                     return !(i.token === scopeToken && i.key === DEFAULT_TIMER_KEY);
                   }
                   return !(i.token === scopeToken && i.key === key);
@@ -576,7 +599,7 @@ export function createAsync<F extends PromiseFunction>(
           promiseHandlerMap.delete(DEFAULT_SINGLE_KEY);
           promiseHandlerMap.delete(key);
         });
-      if (singleDimension === SCOPE.FUNCTION) {
+      if (singleDimension === SCOPE.SHARED) {
         promiseHandlerMap.set(DEFAULT_SINGLE_KEY, promiseHandler);
       } else {
         promiseHandlerMap.set(key, promiseHandler);
@@ -586,16 +609,20 @@ export function createAsync<F extends PromiseFunction>(
   }
 
   // For the default strategy, create WeakMapCacheManager now that fnProxy exists.
-  if (!cacheManager) {
-    cacheManager = new WeakMapCacheManager<PickPromiseType<F>>(fnProxy, ttl, cacheCapacity);
+  // The thunk getCacheManager() captured by fnProxy / clearExpiredCache will
+  // pick this up on first invocation.
+  if (!resolvedManager) {
+    resolvedManager = new WeakMapCacheManager<PickPromiseType<F>>(fnProxy, ttl, cacheCapacity);
   }
-
-  clearExpiredCache = createClearExpiredCache(cacheManager);
 
   function fnClearCache(...params: Parameters<F>): void;
   function fnClearCache(): void;
   function fnClearCache(...params: Parameters<F>) {
-    cacheManager!.delete(params.length ? genKeyByParams(params) : undefined);
+    if (params.length) {
+      getCacheManager().delete(genKeyByParams(params));
+    } else {
+      getCacheManager().clear();
+    }
   }
   fnProxy.clearCache = fnClearCache;
   return fnProxy;

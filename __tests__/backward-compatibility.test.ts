@@ -41,15 +41,15 @@ describe('Backward Compatibility', () => {
       },
       debounce: {
         time: 100,
-        scope: SCOPE.PARAMETERS,
+        scope: SCOPE.KEYED,
         takeLatest: true,
       },
       single: {
         enabled: true,
-        scope: SCOPE.FUNCTION,
+        scope: SCOPE.SHARED,
       },
       retry: (error, count) => count <= 2,
-      hooks: {
+      lifecycle: {
         beforeRun: () => console.log('modern beforeRun'),
       }
     });
@@ -64,10 +64,11 @@ describe('Backward Compatibility', () => {
     expect(callCount).toBe(1);
   });
 
-  it('should support DIMENSIONS as alias for SCOPE', () => {
-    expect(DIMENSIONS.FUNCTION).toBe(SCOPE.FUNCTION);
-    expect(DIMENSIONS.PARAMETERS).toBe(SCOPE.PARAMETERS);
-    expect(DIMENSIONS).toBe(SCOPE);
+  it('should preserve DIMENSIONS numeric values for v1 runtime compat', () => {
+    // DIMENSIONS is now a separate (deprecated) enum from SCOPE, but its
+    // numeric values still match so existing v1 runtime comparisons work.
+    expect(DIMENSIONS.FUNCTION).toBe(SCOPE.SHARED);
+    expect(DIMENSIONS.PARAMETERS).toBe(SCOPE.KEYED);
   });
 
   it('should convert legacy retryCount + retryStrategy to modern retry', async () => {
