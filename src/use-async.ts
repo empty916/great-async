@@ -51,11 +51,20 @@ export interface UseAsyncOptions<F extends PromiseFunction>
    */
   loadingId?: string;
   /**
-   * Default value for data before the async function resolves.
-   * Also used as the data value when the async function rejects.
+   * Value used for `data` before the async function first resolves
+   * (or while the very first call is pending).
    * @default null
    */
-  defaultData?: PickPromiseType<F>;
+  initialData?: PickPromiseType<F>;
+  /**
+   * Value used for `data` when the async function rejects. When omitted,
+   * the previously resolved `data` is preserved on error (so a transient
+   * failure does not blank out the UI).
+   *
+   * Pass `null` (or any other concrete value) to explicitly reset `data`
+   * on every error.
+   */
+  fallbackData?: PickPromiseType<F> | null;
 }
 
 export type UseAsyncReturn<F extends PromiseFunction> =
@@ -157,9 +166,16 @@ export const useAsync = <F extends PromiseFunction>(
     loadingId,
     swr = false,
     onBackgroundUpdate,
-    defaultData = null,
+    initialData,
+    fallbackData,
     ...createAsyncOptions
   } = opts;
+
+  const resolvedInitial: PickPromiseType<F> | null =
+    initialData !== undefined ? initialData : null;
+  // `undefined` here means "keep last data on error".
+  const resolvedFallback: PickPromiseType<F> | null | undefined = fallbackData;
+
   const stateRef = useRef({
     isMounted: false,
     depsRef: initDeps as DependencyList,
@@ -173,7 +189,7 @@ export const useAsync = <F extends PromiseFunction>(
     auto: auto,
     loadingId: '',
     onBackgroundUpdate: onBackgroundUpdate,
-    defaultData: defaultData as PickPromiseType<F> | null,
+    fallbackData: resolvedFallback,
   });
   const [createAsyncOpts] = useState(createAsyncOptions);
 
@@ -222,7 +238,7 @@ export const useAsync = <F extends PromiseFunction>(
     return {
       loading: manual === undefined ? (auto === true) : !manual,
       error: null,
-      data: defaultData,
+      data: resolvedInitial,
     };
   });
 
@@ -234,7 +250,7 @@ export const useAsync = <F extends PromiseFunction>(
   argsRef.current.deps = deps;
   argsRef.current.loadingId = loadingId || '';
   argsRef.current.onBackgroundUpdate = onBackgroundUpdate;
-  argsRef.current.defaultData = defaultData;
+  argsRef.current.fallbackData = resolvedFallback;
 
   if (deps && !Array.isArray(deps)) {
     throw new Error("The deps must be an Array!");
@@ -354,14 +370,17 @@ export const useAsync = <F extends PromiseFunction>(
           return res;
         } catch (err) {
           setAsyncFunctionState((ov) => {
-            const fallbackData = argsRef.current.defaultData;
-            if (!ov.loading && ov.error === err && ov.data === fallbackData) {
+            // When fallbackData is undefined, keep the previous data — a
+            // transient error should not blank out the UI.
+            const fb = argsRef.current.fallbackData;
+            const newData = fb !== undefined ? fb : ov.data;
+            if (!ov.loading && ov.error === err && ov.data === newData) {
               return ov;
             }
             return {
               error: err,
               loading: false,
-              data: fallbackData,
+              data: newData,
             };
           });
           if (throwError) {

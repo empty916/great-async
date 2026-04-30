@@ -790,9 +790,9 @@ function UserProfile({ userId }: { userId: string }) {
 
 **How it works:** When `id` is provided, `great-async` uses a module-level `IdCacheManager` keyed by this string instead of the default `WeakMap<fnProxy>` strategy. The cache stays alive as long as the module is loaded — navigate away and back, and SWR still returns the cached data instantly without a loading flash.
 
-#### 📦 Default Data
+#### 📦 Initial & Fallback Data
 
-Use `defaultData` to avoid unnecessary null checks and provide fallback values:
+Use `initialData` for the default value before first resolve, and `fallbackData` to control what happens on error. When `fallbackData` is omitted, the previously-resolved `data` is preserved so transient errors don't blank the UI:
 
 ```tsx
 function ProductList() {
@@ -805,7 +805,10 @@ function ProductList() {
 
   const { data, loading, error } = useAsync(
     fetchProducts,
-    { defaultData: [] } // Start with empty array, fallback on error
+    {
+      initialData: [],  // Start with empty array before first resolve
+      fallbackData: [], // Reset to empty array on error (explicit)
+    }
   );
 
   // data is always an array — no null check needed
@@ -983,7 +986,8 @@ Extends `createAsync` options with React-specific features:
 | `auto` | `boolean \| 'deps-only'` | `true` | Control auto-execution behavior:<br/>• `true`: Auto-call on mount and deps change<br/>• `false`: Manual execution only<br/>• `'deps-only'`: Auto-call only when deps change |
 | `deps` | `Array` | `[]` | Re-run when dependencies change |
 | `loadingId` | `string` | `''` | Share loading state across components |
-| `defaultData` | `T` | `null` | Default value for `data` before the async function resolves. Also used as the fallback value when the function rejects |
+| `initialData` | `T` | `null` | Value used for `data` before the async function first resolves |
+| `fallbackData` | `T \| null \| undefined` | `undefined` | Value used for `data` when the function rejects. `undefined` preserves the last-resolved data (transient errors won't blank the UI) |
 
 #### Return Values
 | Property | Type | Description |
