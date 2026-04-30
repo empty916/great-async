@@ -847,11 +847,11 @@ enhancedFn.clearCache(param1, param2);
 #### Caching Options
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `ttl` | `number` | `-1` | Cache duration in milliseconds |
-| `cacheCapacity` | `number` | `-1` | Maximum cache size (LRU) |
+| `ttl` | `number` | `-1` | Cache duration in milliseconds. **Caching is OFF by default** — set `ttl` or `cacheCapacity` to enable |
+| `cacheCapacity` | `number` | `-1` | Maximum cache size using LRU eviction. **Caching is OFF by default** — set this or `ttl` to enable |
 | `swr` | `boolean` | `false` | Enable stale-while-revalidate |
-| `id` | `string` | — | Stable cache identifier. When provided, the cache uses a module-level store keyed by this id instead of the default WeakMap strategy. This allows cache to survive component mount/unmount cycles |
-| `cacheManager` | `CacheManager<T>` | — | Custom cache manager instance. When provided, all cache operations are delegated to this manager. Takes precedence over `id` |
+| `id` | `string` | — | Stable cache identifier. Uses a module-level store keyed by this id instead of the default WeakMap strategy. Cache survives component mount/unmount |
+| `cacheManager` | `CacheManager<T>` | — | Custom cache manager. Takes precedence over `id` (with dev warning). The manager is responsible for expiration/eviction — `ttl` and `cacheCapacity` are not interpreted by createAsync when this is set |
 
 #### Performance Options
 | Option | Type | Default | Description |
