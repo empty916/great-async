@@ -110,7 +110,7 @@ const swrAPI = createAsync(fetchUserProfile, {
     swr: true,
     ttl: 60000,
   },
-  hooks: {
+  lifecycle: {
     onBackgroundUpdate: (freshData, error) => {
       if (freshData) console.log('Data updated in background!');
       if (error) console.error('Background update failed:', error);
@@ -158,7 +158,7 @@ console.log(result1 === result2 && result2 === result3); // true - all use resul
 Control when functions execute with two different scopes:
 
 ```typescript
-import { DIMENSIONS } from 'great-async/asyncController';
+import { SCOPE } from 'great-async';
 
 // Define the API function
 const searchAPI = async (query: string) => {
@@ -166,11 +166,11 @@ const searchAPI = async (query: string) => {
   return response.json();
 };
 
-// PARAMETERS scope: Debounce per unique parameters
+// KEYED scope: Debounce per unique parameters
 const parameterDebounce = createAsync(searchAPI, {
   debounce: {
     time: 300,
-    scope: SCOPE.PARAMETERS,
+    scope: SCOPE.KEYED,
   }
 });
 
@@ -179,11 +179,11 @@ parameterDebounce('react');  // Timer 1: Will execute after 300ms
 parameterDebounce('vue');    // Timer 2: Will execute after 300ms (different parameter)
 parameterDebounce('react');  // Cancels Timer 1, starts new timer for 'react'
 
-// FUNCTION scope: Debounce ignores parameters
+// SHARED scope: Debounce ignores parameters
 const functionDebounce = createAsync(searchAPI, {
   debounce: {
     time: 300,
-    scope: SCOPE.FUNCTION,
+    scope: SCOPE.SHARED,
   }
 });
 
@@ -279,7 +279,7 @@ class APIClient {
   private debouncedSearch = createAsync(this.httpGet, {
     debounce: {
       time: 300,
-      scope: SCOPE.PARAMETERS, // Debounce per unique search query
+      scope: SCOPE.KEYED, // Debounce per unique search query
       takeLatest: true,      // Latest search wins, discard previous identical searches
     }
   });
@@ -327,7 +327,7 @@ const createSearchController = (endpoint: string) => {
       retry: (error, currentRetryCount) => error.status >= 500 && currentRetryCount <= 2,
 
       // Callbacks
-      hooks: {
+      lifecycle: {
         onBackgroundUpdate: (results, error) => {
           if (error) console.warn('Search cache update failed:', error);
         },
@@ -492,7 +492,7 @@ function CreateUser() {
 Share loading states across multiple components using the same `loadingId`:
 
 ```tsx
-import { useAsync, useLoadingState } from 'great-async';
+import { useAsync, usePendingState } from 'great-async';
 
 // Define the API functions
 const fetchUser = async () => {
@@ -525,11 +525,11 @@ function UserAvatar() {
 }
 
 function GlobalLoadingIndicator() {
-  const isLoading = useLoadingState('user-data'); // Reacts to shared loading state
+  const isPending = usePendingState('user-data'); // Reacts to shared pending state
   
   return (
     <div className="global-loading">
-      {isLoading && <div>🔄 Loading user data...</div>}
+      {isPending && <div>🔄 Loading user data...</div>}
     </div>
   );
 }
@@ -587,7 +587,7 @@ function Dashboard() {
         swr: true,
         ttl: 2 * 60 * 1000, // 2 minutes
       },
-      hooks: {
+      lifecycle: {
         onBackgroundUpdate: (newData, error) => {
           if (error) toast.error('Failed to sync user data');
         },
@@ -802,9 +802,9 @@ function UserSettings({ userId }: { userId: string }) {
 }
 ```
 
-#### 📦 Default Data
+#### 📦 Initial & Fallback Data
 
-Use `defaultData` to avoid unnecessary null checks and provide fallback values:
+Use `initialData` for the default value before first resolve, and `fallbackData` to control what happens on error. When `fallbackData` is omitted, the previously-resolved `data` is preserved so transient errors don't blank the UI:
 
 ```tsx
 function ProductList() {
@@ -817,7 +817,10 @@ function ProductList() {
 
   const { data, pending, error } = useAsync(
     fetchProducts,
-    { defaultData: [] } // Start with empty array, fallback on error
+    {
+      initialData: [],  // Start with empty array before first resolve
+      fallbackData: [], // Reset to empty array on error (explicit)
+    }
   );
 
   // data is always an array — no null check needed
@@ -896,32 +899,36 @@ enhancedFn.clearCache(param1, param2);
 #### Cache Configuration (`cache`)
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `ttl` | `number` | `-1` | Cache duration in milliseconds |
+| `ttl` | `number` | `-1` | Cache duration in milliseconds. Caching is OFF by default — set `ttl` or `capacity` to enable |
 | `capacity` | `number` | `-1` | Maximum cache size (LRU) |
 | `keyGenerator` | `function` | `JSON.stringify` | Custom cache key generator |
 | `swr` | `boolean` | `false` | Enable stale-while-revalidate |
-| `id` | `string` | — | Stable cache identifier. When provided, the cache uses a module-level store keyed by this id instead of the default WeakMap strategy. This allows cache to survive component mount/unmount cycles |
-| `cacheManager` | `CacheManager<T>` | — | Custom cache manager instance. When provided, all cache operations are delegated to this manager. Takes precedence over `id` |
+| `manager` | `CacheManager<T>` | — | Custom cache manager instance. Takes precedence over top-level `id`. The manager is fully responsible for expiration, capacity, and policy |
+
+#### Top-Level Options
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `id` | `string` | — | Stable cache identifier. When provided (and no `cache.manager` is set), the cache uses a module-level store keyed by this id instead of the default WeakMap strategy. Allows cache to survive component mount/unmount cycles |
 
 #### Debounce Configuration (`debounce`)
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `time` | `number` | `-1` | Debounce delay in milliseconds |
-| `scope` | `SCOPE` | `FUNCTION` | Debounce scope:<br/>• `FUNCTION`: Debounce ignores parameters<br/>• `PARAMETERS`: Debounce per unique parameters |
+| `scope` | `SCOPE` | `SHARED` | Debounce scope:<br/>• `SHARED`: Debounce ignores parameters<br/>• `KEYED`: Debounce per unique parameters |
 | `takeLatest` | `boolean` | `false` | Latest request wins - discard previous identical requests |
 
 #### Single Mode Configuration (`single`)
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `enabled` | `boolean` | `false` | Share result of first ongoing request with all pending requests |
-| `scope` | `SCOPE` | `FUNCTION` | Single mode scope:<br/>• `FUNCTION`: Single mode ignores parameters<br/>• `PARAMETERS`: Single mode per unique parameters |
+| `scope` | `SCOPE` | `SHARED` | Single mode scope:<br/>• `SHARED`: Single mode ignores parameters<br/>• `KEYED`: Single mode per unique parameters |
 
 #### Retry Configuration
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `retry` | `function` | `undefined` | Custom retry logic `(error, currentRetryCount) => boolean` |
 
-#### Lifecycle Hooks (`hooks`)
+#### Lifecycle Callbacks (`lifecycle`)
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `beforeRun` | `function` | `undefined` | Called before function execution |
@@ -956,17 +963,17 @@ const newWay = createAsync(apiCall, {
   },
   debounce: {
     time: 300,
-    scope: SCOPE.PARAMETERS,
+    scope: SCOPE.KEYED,
     takeLatest: true
   },
   single: {
     enabled: true,
-    scope: SCOPE.FUNCTION
+    scope: SCOPE.SHARED
   },
   retry: (error, currentRetryCount) => {
     return currentRetryCount <= 3 && error.status >= 500;
   },
-  hooks: {
+  lifecycle: {
     beforeRun: () => console.log('starting'),
     onBackgroundUpdate: (data, error) => console.log('updated')
   }
@@ -1007,7 +1014,7 @@ const { data, pending } = useAsync(fetchUser, {
   retry: (error, currentRetryCount) => {
     return currentRetryCount <= 3 && error.status >= 500;
   },
-  hooks: {
+  lifecycle: {
     beforeRun: () => console.log('fetching user'),
     onBackgroundUpdate: (data, error) => {
       if (error) console.error('Background update failed:', error);
@@ -1087,7 +1094,7 @@ const comprehensiveAPI = createAsync(fetchData, {
   retry: (error, currentRetryCount) => {
     return error.status >= 500 && currentRetryCount <= 3;
   },
-  hooks: {
+  lifecycle: {
     beforeRun: () => console.log('API call starting'),
     onBackgroundUpdate: (data, error) => {
       if (error) console.error('Background update failed:', error);
@@ -1110,7 +1117,7 @@ const noRetry = createAsync(fetchData, {
 
 ### useAsync(asyncFn, options)
 
-Extends `createAsync` options with React-specific features. **All `createAsync` options are supported** (cache, debounce, single, retry, hooks).
+Extends `createAsync` options with React-specific features. **All `createAsync` options are supported** (cache, debounce, single, retry, lifecycle).
 
 #### React-Specific Options
 | Option | Type | Default | Description |
@@ -1119,7 +1126,8 @@ Extends `createAsync` options with React-specific features. **All `createAsync` 
 | `deps` | `Array` | `[]` | Re-run when dependencies change |
 | `pendingId` | `string` | `''` | Share pending state across components (recommended) |
 | `loadingId` | `string` | `''` | Share pending state across components (deprecated, use `pendingId`) |
-| `defaultData` | `T` | `null` | Default value for `data` before the async function resolves. Also used as the fallback value when the function rejects |
+| `initialData` | `T` | `null` | Value used for `data` before the async function first resolves |
+| `fallbackData` | `T \| null \| undefined` | `undefined` | Value used for `data` when the function rejects. `undefined` preserves the last-resolved data (transient errors won't blank the UI) |
 
 #### Inherited Options from createAsync
 All grouped options from `createAsync` are supported:
@@ -1127,7 +1135,7 @@ All grouped options from `createAsync` are supported:
 - **`debounce`**: `{ time, scope, takeLatest }`
 - **`single`**: `{ enabled, scope }`
 - **`retry`**: `(error, currentRetryCount) => boolean`
-- **`hooks`**: `{ beforeRun, onBackgroundUpdateStart, onBackgroundUpdate }`
+- **`lifecycle`**: `{ beforeRun, onBackgroundUpdateStart, onBackgroundUpdate }`
 
 See [createAsync API reference](#cache-configuration-cache) for detailed options.
 
@@ -1136,7 +1144,7 @@ See [createAsync API reference](#cache-configuration-cache) for detailed options
 |----------|------|-------------|
 | `data` | `T \| null` | The result data |
 | `pending` | `boolean` | True during async operation (recommended) |
-| `loading` | `boolean` | True during async operation (deprecated, use `pending`) |
+| `loading` | `boolean` | Alias for `pending`. Both names refer to the same in-flight state |
 | `error` | `any` | Error object if request fails |
 | `backgroundUpdating` | `boolean` | True during SWR background updates |
 | `fn` | `Function` | Manually trigger the async function |
@@ -1157,7 +1165,7 @@ import { useAsync } from 'great-async/dist/use-async';
 
 // Utility modules (kebab-case)
 import { createTakeLatestPromise } from 'great-async/take-latest-promise';
-import { shareLoading } from 'great-async/share-loading';
+import { sharePending } from 'great-async/share-pending';
 ```
 
 ### TypeScript Support
@@ -1357,7 +1365,7 @@ const fetchUserProfile = async (userId: string) => {
 const searchAPI = createAsync(performSearch, {
   debounce: {
     time: 300,
-    scope: SCOPE.PARAMETERS, // Per-parameter debouncing
+    scope: SCOPE.KEYED, // Per-parameter debouncing
     takeLatest: true, // Latest request wins
   },
   cache: {
