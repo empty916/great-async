@@ -16,7 +16,7 @@ import type { PickPromiseType, PromiseFunction, AsyncError } from "./common";
 import { shallowEqual, defaultGenKeyByParams } from "./common";
 import { shareLoading, useLoadingState } from "./share-loading";
 import { IdCacheManager } from "./id-cache-manager";
-import { getCache } from "./weak-map-cache-manager";
+import { WeakMapCacheManager } from "./weak-map-cache-manager";
 
 export interface AsyncFunctionState<T> {
   loading: boolean;
@@ -177,14 +177,31 @@ export const useAsync = <F extends PromiseFunction>(
   });
   const [createAsyncOpts] = useState(createAsyncOptions);
 
-  // When `id` is provided, the cache lives in a module-level IdCacheManager
-  // that survives mount/unmount. Check it eagerly so SWR can return data
-  // on the very first render without a loading flash.
+  // When `cacheManager` or `id` is provided, the cache lives outside of
+  // createAsync (in user-supplied manager / module-level IdCacheManager) and
+  // survives mount/unmount. Check it eagerly so SWR can return data on the
+  // very first render without a loading flash.
+  //
+  // For the default WeakMap mode this stays null — the WeakMap entry is
+  // keyed by the not-yet-created fnProxy, so the SWR cache check has to
+  // happen later via WeakMapCacheManager.peek.
   const cacheManagerForState = useMemo(() => {
+    if (createAsyncOpts.cacheManager) {
+      return createAsyncOpts.cacheManager;
+    }
     return createAsyncOpts.id
-      ? new IdCacheManager<PickPromiseType<F>>(createAsyncOpts.id, createAsyncOpts.ttl ?? -1)
+      ? IdCacheManager.forId<PickPromiseType<F>>(
+          createAsyncOpts.id,
+          createAsyncOpts.ttl ?? -1,
+          createAsyncOpts.cacheCapacity ?? -1,
+        )
       : null;
-  }, [createAsyncOpts.id, createAsyncOpts.ttl]);
+  }, [
+    createAsyncOpts.cacheManager,
+    createAsyncOpts.id,
+    createAsyncOpts.ttl,
+    createAsyncOpts.cacheCapacity,
+  ]);
 
   const getCachedData = (key: string) => {
     if (!cacheManagerForState) return null;
@@ -296,16 +313,18 @@ export const useAsync = <F extends PromiseFunction>(
       return async (...args: Parameters<F>) => {
         await Promise.resolve();
 
-        // Check if SWR has valid cache — consults both legacy cacheMap
-        // (keyed by fnProxy) and IdCacheManager (keyed by opts.id).
+        // Check if SWR has valid cache. Two complementary sources:
+        // 1. cacheManagerForState — covers `cacheManager` and `id` modes.
+        // 2. WeakMapCacheManager.peek — covers the default WeakMap mode,
+        //    which is keyed by fnProxy and only resolvable after fnProxy
+        //    has been constructed.
         const cacheKey = (createAsyncOpts.genKeyByParams || defaultGenKeyByParams)(args);
         const hasSWRCache = swr && !!(
-          getCache({
+          getCachedData(cacheKey)
+          || WeakMapCacheManager.peek(fnProxy, cacheKey, {
             ttl: createAsyncOpts.ttl ?? -1,
             cacheCapacity: createAsyncOpts.cacheCapacity ?? -1,
-            fn: fnProxy,
-            key: cacheKey,
-          }) || getCachedData(cacheKey)
+          })
         );
 
         if (createAsyncOpts.debounceTime === -1 && !hasSWRCache) {

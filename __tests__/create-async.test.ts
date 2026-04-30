@@ -1,5 +1,7 @@
-import { DIMENSIONS, cacheMap, createAsync } from '../src';
+import { DIMENSIONS, createAsync, WeakMapCacheManager } from '../src';
 import { sleep } from '../src/utils';
+
+const { cacheMap } = WeakMapCacheManager;
 
 
 test('normal', async () => {

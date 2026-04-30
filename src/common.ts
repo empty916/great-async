@@ -1,5 +1,9 @@
 import type { DependencyList } from "react";
 
+export const isDev = typeof process !== 'undefined'
+  && typeof process.env !== 'undefined'
+  && process.env.NODE_ENV !== 'production';
+
 export type PromiseFunction = (...args: any) => Promise<any>;
 
 /**
