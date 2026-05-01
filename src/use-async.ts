@@ -191,7 +191,11 @@ export const useAsync = <F extends PromiseFunction>(
     onBackgroundUpdate: onBackgroundUpdate,
     fallbackData: resolvedFallback,
   });
+  // Most options are frozen on first render (ttl, debounce, etc. are not
+  // expected to change). id is the exception — it may contain dynamic values
+  // like `fetchUser-${userId}` and must be read fresh each render.
   const [createAsyncOpts] = useState(createAsyncOptions);
+  const id = opts.id;
 
   // When `cacheManager` or `id` is provided, the cache lives outside of
   // createAsync (in user-supplied manager / module-level IdCacheManager) and
@@ -205,16 +209,16 @@ export const useAsync = <F extends PromiseFunction>(
     if (createAsyncOpts.cacheManager) {
       return createAsyncOpts.cacheManager;
     }
-    return createAsyncOpts.id
+    return id
       ? IdCacheManager.forId<PickPromiseType<F>>(
-          createAsyncOpts.id,
+          id,
           createAsyncOpts.ttl ?? -1,
           createAsyncOpts.cacheCapacity ?? -1,
         )
       : null;
   }, [
     createAsyncOpts.cacheManager,
-    createAsyncOpts.id,
+    id,
     createAsyncOpts.ttl,
     createAsyncOpts.cacheCapacity,
   ]);
@@ -282,6 +286,7 @@ export const useAsync = <F extends PromiseFunction>(
       argsRef.current.asyncFn(...(args as any));
     return createAsync(fn1 as F, {
       ...createAsyncOpts,
+      id,  // override frozen id with current value
       swr,
       onBackgroundUpdateStart: swr ? (cachedData: PickPromiseType<F>) => {
         // Background update is starting, set backgroundUpdating state
@@ -322,7 +327,7 @@ export const useAsync = <F extends PromiseFunction>(
             }
           : undefined,
     });
-  }, [createAsyncOpts, swr]);
+  }, [createAsyncOpts, id, swr]);
 
   const createRunFn = useCallback(
     (throwError: boolean) => {
