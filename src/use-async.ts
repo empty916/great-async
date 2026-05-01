@@ -17,6 +17,7 @@ import { shallowEqual, defaultGenKeyByParams } from "./common";
 import { shareLoading, useLoadingState } from "./share-loading";
 import { IdCacheManager } from "./id-cache-manager";
 import { WeakMapCacheManager } from "./weak-map-cache-manager";
+import { useFn } from "./utils";
 
 export interface AsyncFunctionState<T> {
   loading: boolean;
@@ -223,10 +224,11 @@ export const useAsync = <F extends PromiseFunction>(
     createAsyncOpts.cacheCapacity,
   ]);
 
-  const getCachedData = (key: string) => {
+  // Stable getter so createRunFn always reads the latest cacheManagerForState.
+  const getCachedData = useFn((key: string) => {
     if (!cacheManagerForState) return null;
     return cacheManagerForState.get(key);
-  };
+  });
 
   const defaultCacheKey = (createAsyncOpts.genKeyByParams || defaultGenKeyByParams)([] as any);
 
@@ -329,20 +331,26 @@ export const useAsync = <F extends PromiseFunction>(
     });
   }, [createAsyncOpts, id, swr]);
 
+
+
+  // Stable ref so createRunFn can use the latest fnProxy without
+  // depending on it (fnProxy changes when id changes).
+  const fnProxyRef = useRef(fnProxy);
+  fnProxyRef.current = fnProxy;
+
   const createRunFn = useCallback(
     (throwError: boolean) => {
       return async (...args: Parameters<F>) => {
         await Promise.resolve();
 
         // Check if SWR has valid cache. Two complementary sources:
-        // 1. cacheManagerForState — covers `cacheManager` and `id` modes.
-        // 2. WeakMapCacheManager.peek — covers the default WeakMap mode,
-        //    which is keyed by fnProxy and only resolvable after fnProxy
-        //    has been constructed.
+        // 1. getCachedData (via useFn) — covers `cacheManager` and `id` modes.
+        // 2. WeakMapCacheManager.peek (via fnProxyRef) — covers the default
+        //    WeakMap mode keyed by the fnProxy from createAsync.
         const cacheKey = (createAsyncOpts.genKeyByParams || defaultGenKeyByParams)(args);
         const hasSWRCache = swr && !!(
           getCachedData(cacheKey)
-          || WeakMapCacheManager.peek(fnProxy, cacheKey, {
+          || WeakMapCacheManager.peek(fnProxyRef.current, cacheKey, {
             ttl: createAsyncOpts.ttl ?? -1,
             cacheCapacity: createAsyncOpts.cacheCapacity ?? -1,
           })
@@ -361,7 +369,7 @@ export const useAsync = <F extends PromiseFunction>(
         }
 
         try {
-          const res = await fnProxy(...args);
+          const res = await fnProxyRef.current(...args);
           setAsyncFunctionState((ov) => {
             if (!ov.loading && ov.error === null && ov.data === res) {
               return ov;
@@ -396,7 +404,7 @@ export const useAsync = <F extends PromiseFunction>(
         }
       };
     },
-    [fnProxy, swr, createAsyncOpts]
+    [swr, createAsyncOpts]
   );
 
   const runFn = useMemo(() => createRunFn(false), [createRunFn]);
@@ -433,6 +441,8 @@ export const useAsync = <F extends PromiseFunction>(
     runFn();
   }, [deps, runFn]);
 
+  const clearCacheFn = useFn(fnProxy.clearCache);
+
   const composedPendingState = asyncFunctionState.loading || sharedLoadingState;
 
   return {
@@ -442,7 +452,7 @@ export const useAsync = <F extends PromiseFunction>(
     backgroundUpdating,
     run: manualRunFn,
     fn: manualRunFn,
-    clearCache: fnProxy.clearCache,
+    clearCache: clearCacheFn,
   } as UseAsyncReturn<F>;
 };
 
