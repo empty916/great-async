@@ -583,6 +583,7 @@ function Dashboard() {
   const { data: user, backgroundUpdating } = useAsync(
     fetchCurrentUser,
     {
+      id: 'currentUser', // Required: cache survives remounts, no pending flash
       cache: {
         swr: true,
         ttl: 2 * 60 * 1000, // 2 minutes
@@ -872,6 +873,56 @@ function UserProfile({ userId }: { userId: string }) {
 ```
 
 **How it works:** When `id` is provided, `great-async` uses a module-level `IdCacheManager` keyed by this string instead of the default `WeakMap<fnProxy>` strategy. The cache stays alive as long as the module is loaded — navigate away and back, and SWR still returns the cached data instantly without a loading flash.
+
+> **⚠️ SWR in React requires `id`.** The default WeakMap cache is keyed by the fnProxy which gets garbage-collected on unmount. Without `id`, SWR has no cache to serve after a remount and will always show a **pending flash** on every navigation. Always pair `cache.swr: true` with an `id` in React components.
+
+> **⚠️ Cache key uniqueness.** The full cache key is `id + keyGenerator(params)`. A no-arg function always produces the same params key (`"[]"`). If two component instances use the same `id` with a no-arg function, they **share one cache entry** and will overwrite each other's data. To keep caches independent, you must ensure unique full keys. Two ways:
+>
+> **Option 1: Make the function take distinguishing parameters** (recommended). The params naturally create unique keys:
+> ```tsx
+> // ✅ Different userId → different cache keys under the same id
+> function UserProfile({ userId }: { userId: string }) {
+>   const { data } = useAsync(
+>     (id: string = userId) => fetchUser(id),
+>     { id: 'fetchUser', cache: { swr: true, ttl: 60000 }, deps: [userId] }
+>   );
+> }
+> // Keys: fetchUser:["123"], fetchUser:["456"]  — independent!
+> ```
+>
+> **Option 2: Bake `userId` into `id`** when the fn is a no-arg closure:
+> ```tsx
+> // ✅ Unique id per userId → separate cache entries
+> function UserProfile({ userId }: { userId: string }) {
+>   const { data } = useAsync(
+>     () => fetchUser(userId),  // no-arg: closes over userId
+>     { id: `fetchUser-${userId}`, cache: { swr: true, ttl: 60000 }, deps: [userId] }
+>   );
+> }
+> // Keys: fetchUser-123:[], fetchUser-456:[]  — independent!
+> ```
+>
+> ```tsx
+> // ❌ BAD: same id + no-arg fn → both instances share key 'fetchUser:[]'
+> function UserProfile({ userId }: { userId: string }) {
+>   const { data } = useAsync(
+>     () => fetchUser(userId),
+>     { id: 'fetchUser', cache: { swr: true } }  // overwrites between instances!
+>   );
+> }
+> ```
+>
+> **Manual call mode** works the same way — the cache key depends on the args passed to `fn()`:
+> ```tsx
+> function UserProfile({ userId }: { userId: string }) {
+>   const { data, fn } = useAsync(
+>     (id: string) => fetchUser(id),
+>     { id: 'fetchUser', cache: { swr: true }, auto: false }
+>   );
+>   // cache key = fetchUser:["123"] — derived from fn() args, not deps
+>   return <button onClick={() => fn(userId)}>Load</button>;
+> }
+> ```
 
 
 ## API Reference
