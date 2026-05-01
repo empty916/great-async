@@ -17,6 +17,7 @@ import { shallowEqual, defaultGenKeyByParams } from "./common";
 import { sharePending, usePendingState } from "./share-pending";
 import { IdCacheManager } from "./id-cache-manager";
 import { WeakMapCacheManager } from "./weak-map-cache-manager";
+import { useFn } from "./utils";
 
 export interface AsyncFunctionState<T> {
   pending: boolean;
@@ -197,7 +198,11 @@ export const useAsync = <F extends PromiseFunction>(
     onBackgroundUpdate: onBackgroundUpdate,
     fallbackData: resolvedFallback,
   });
+  // Most options are frozen on first render (ttl, debounce, etc. are not
+  // expected to change). id is the exception — it may contain dynamic values
+  // like `fetchUser-${userId}` and must be read fresh each render.
   const [createAsyncOpts] = useState(createAsyncOptions);
+  const id = opts.id;
 
   // When `cache.manager` or `id` is provided, the cache lives outside of
   // createAsync (in user-supplied manager / module-level IdCacheManager) and
@@ -211,24 +216,25 @@ export const useAsync = <F extends PromiseFunction>(
     if (createAsyncOpts.cache?.manager) {
       return createAsyncOpts.cache.manager;
     }
-    return createAsyncOpts.id
+    return id
       ? IdCacheManager.forId<PickPromiseType<F>>(
-          createAsyncOpts.id,
+          id,
           createAsyncOpts.cache?.ttl ?? -1,
           createAsyncOpts.cache?.capacity ?? -1,
         )
       : null;
   }, [
     createAsyncOpts.cache?.manager,
-    createAsyncOpts.id,
+    id,
     createAsyncOpts.cache?.ttl,
     createAsyncOpts.cache?.capacity,
   ]);
 
-  const getCachedData = (key: string) => {
+  // Stable getter so createRunFn always reads the latest cacheManagerForState.
+  const getCachedData = useFn((key: string) => {
     if (!cacheManagerForState) return null;
     return cacheManagerForState.get(key);
-  };
+  });
 
   const defaultCacheKey = (createAsyncOpts.cache?.keyGenerator || defaultGenKeyByParams)([] as any);
 
@@ -339,8 +345,15 @@ export const useAsync = <F extends PromiseFunction>(
       }
     };
 
+    // Override frozen id with current value so createAsync always uses the latest.
+    mergedOptions.id = id;
     return createAsync(fn1 as F, mergedOptions);
-  }, [createAsyncOpts, swr]);
+  }, [createAsyncOpts, id, swr]);
+
+  // Stable ref so createRunFn can use the latest fnProxy without
+  // depending on it (fnProxy changes when id changes).
+  const fnProxyRef = useRef(fnProxy);
+  fnProxyRef.current = fnProxy;
 
   const createRunFn = useCallback(
     (throwError: boolean) => {
@@ -348,14 +361,13 @@ export const useAsync = <F extends PromiseFunction>(
         await Promise.resolve();
 
         // Check if SWR has valid cache. Two complementary sources:
-        // 1. cacheManagerForState — covers `cacheManager` and `id` modes.
-        // 2. WeakMapCacheManager.peek — covers the default WeakMap mode,
-        //    which is keyed by fnProxy and only resolvable after fnProxy
-        //    has been constructed.
+        // 1. getCachedData (via useFn) — covers `cacheManager` and `id` modes.
+        // 2. WeakMapCacheManager.peek (via fnProxyRef) — covers the default
+        //    WeakMap mode keyed by the fnProxy from createAsync.
         const cacheKey = (createAsyncOpts.cache?.keyGenerator || defaultGenKeyByParams)(args);
         const hasSWRCache = swr && !!(
           getCachedData(cacheKey)
-          || WeakMapCacheManager.peek(fnProxy, cacheKey, {
+          || WeakMapCacheManager.peek(fnProxyRef.current, cacheKey, {
             ttl: createAsyncOpts.cache?.ttl ?? -1,
             cacheCapacity: createAsyncOpts.cache?.capacity ?? -1,
           })
@@ -375,7 +387,7 @@ export const useAsync = <F extends PromiseFunction>(
         }
 
         try {
-          const res = await fnProxy(...args);
+          const res = await fnProxyRef.current(...args);
           setAsyncFunctionState((ov) => {
             if (!ov.pending && ov.error === null && ov.data === res) {
               return ov;
@@ -410,7 +422,7 @@ export const useAsync = <F extends PromiseFunction>(
         }
       };
     },
-    [fnProxy, swr, createAsyncOpts]
+    [swr, createAsyncOpts]
   );
 
   const runFn = useMemo(() => createRunFn(false), [createRunFn]);
@@ -447,6 +459,8 @@ export const useAsync = <F extends PromiseFunction>(
     runFn();
   }, [deps, runFn]);
 
+  const clearCacheFn = useFn(fnProxy.clearCache);
+
   const composedPendingState = asyncFunctionState.pending || sharedPendingState;
 
   return {
@@ -457,7 +471,7 @@ export const useAsync = <F extends PromiseFunction>(
     backgroundUpdating,
     run: manualRunFn,
     fn: manualRunFn,
-    clearCache: fnProxy.clearCache,
+    clearCache: clearCacheFn,
   } as UseAsyncReturn<F>;
 };
 
