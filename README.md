@@ -807,24 +807,37 @@ function UserProfile({ userId }: { userId: string }) {
 > // Keys: fetchUser:["123"], fetchUser:["456"]  — independent!
 > ```
 >
-> **Option 2: Make the `id` unique per instance** when the function truly takes no arguments:
+> **Option 2: Bake `userId` into `id`** when the fn is a no-arg closure:
 > ```tsx
-> // ✅ Each instance gets its own id → separate cache entries
-> function Dashboard() {
+> // ✅ Unique id per userId → separate cache entries
+> function UserProfile({ userId }: { userId: string }) {
 >   const { data } = useAsync(
->     fetchGlobalConfig,
->     { id: 'globalConfig', swr: true, ttl: 60000 }
+>     () => fetchUser(userId),  // no-arg: closes over userId
+>     { id: `fetchUser-${userId}`, swr: true, ttl: 60000, deps: [userId] }
 >   );
 > }
-> // Only one instance on screen — single key 'globalConfig:[]' is fine
+> // Keys: fetchUser-123:[], fetchUser-456:[]  — independent!
 > ```
+>
 > ```tsx
-> // ❌ BAD: Two instances, same id + no params = shared cache, mutual overwrite
-> function UserAvatar({ userId }: { userId: string }) {
+> // ❌ BAD: same id + no-arg fn → both instances share key 'fetchUser:[]'
+> function UserProfile({ userId }: { userId: string }) {
 >   const { data } = useAsync(
->     fetchAvatar,  // no params!
->     { id: 'avatar', swr: true }  // both instances share key 'avatar:[]'
+>     () => fetchUser(userId),
+>     { id: 'fetchUser', swr: true }  // overwrites between instances!
 >   );
+> }
+> ```
+>
+> **Manual call mode** works the same way — the cache key depends on the args passed to `fn()`:
+> ```tsx
+> function UserProfile({ userId }: { userId: string }) {
+>   const { data, fn } = useAsync(
+>     (id: string) => fetchUser(id),
+>     { id: 'fetchUser', swr: true, auto: false }
+>   );
+>   // cache key = fetchUser:["123"] — derived from fn() args, not deps
+>   return <button onClick={() => fn(userId)}>Load</button>;
 > }
 > ```
 
