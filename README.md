@@ -546,6 +546,7 @@ function Dashboard() {
   const { data: user, backgroundUpdating } = useAsync(
     fetchCurrentUser,
     {
+      id: 'currentUser', // Required: cache survives remounts, no loading flash
       swr: true,
       ttl: 2 * 60 * 1000, // 2 minutes
       onBackgroundUpdate: (newData, error) => {
@@ -789,6 +790,12 @@ function UserProfile({ userId }: { userId: string }) {
 ```
 
 **How it works:** When `id` is provided, `great-async` uses a module-level `IdCacheManager` keyed by this string instead of the default `WeakMap<fnProxy>` strategy. The cache stays alive as long as the module is loaded — navigate away and back, and SWR still returns the cached data instantly without a loading flash.
+
+> **⚠️ SWR in React requires `id`.** The default WeakMap cache is keyed by the fnProxy which gets garbage-collected on unmount. Without `id`, SWR has no cache to serve after a remount and will always show a **loading flash** on every navigation. Always pair `swr: true` with an `id` in React components.
+
+> **⚠️ Cache key uniqueness.** The cache key is generated from the function parameters (default: `JSON.stringify`). A no-arg function always produces the same key (`"[]"`), so all components using the same `id` without parameters **share the exact same cache entry**. If each component needs independent cache (e.g. different user profiles), either:
+> - Pass distinguishing parameters to the function (e.g. `userId`)
+> - Or use a unique `id` per component instance
 
 #### 📦 Initial & Fallback Data
 
