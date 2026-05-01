@@ -793,9 +793,40 @@ function UserProfile({ userId }: { userId: string }) {
 
 > **⚠️ SWR in React requires `id`.** The default WeakMap cache is keyed by the fnProxy which gets garbage-collected on unmount. Without `id`, SWR has no cache to serve after a remount and will always show a **loading flash** on every navigation. Always pair `swr: true` with an `id` in React components.
 
-> **⚠️ Cache key uniqueness.** The cache key is generated from the function parameters (default: `JSON.stringify`). A no-arg function always produces the same key (`"[]"`), so all components using the same `id` without parameters **share the exact same cache entry**. If each component needs independent cache (e.g. different user profiles), either:
-> - Pass distinguishing parameters to the function (e.g. `userId`)
-> - Or use a unique `id` per component instance
+> **⚠️ Cache key uniqueness.** The full cache key is `id + keyGenerator(params)`. A no-arg function always produces the same params key (`"[]"`). If two component instances use the same `id` with a no-arg function, they **share one cache entry** and will overwrite each other's data. To keep caches independent, you must ensure unique full keys. Two ways:
+>
+> **Option 1: Make the function take distinguishing parameters** (recommended). The params naturally create unique keys:
+> ```tsx
+> // ✅ Different userId → different cache keys under the same id
+> function UserProfile({ userId }: { userId: string }) {
+>   const { data } = useAsync(
+>     (id: string = userId) => fetchUser(id),
+>     { id: 'fetchUser', swr: true, ttl: 60000, deps: [userId] }
+>   );
+> }
+> // Keys: fetchUser:["123"], fetchUser:["456"]  — independent!
+> ```
+>
+> **Option 2: Make the `id` unique per instance** when the function truly takes no arguments:
+> ```tsx
+> // ✅ Each instance gets its own id → separate cache entries
+> function Dashboard() {
+>   const { data } = useAsync(
+>     fetchGlobalConfig,
+>     { id: 'globalConfig', swr: true, ttl: 60000 }
+>   );
+> }
+> // Only one instance on screen — single key 'globalConfig:[]' is fine
+> ```
+> ```tsx
+> // ❌ BAD: Two instances, same id + no params = shared cache, mutual overwrite
+> function UserAvatar({ userId }: { userId: string }) {
+>   const { data } = useAsync(
+>     fetchAvatar,  // no params!
+>     { id: 'avatar', swr: true }  // both instances share key 'avatar:[]'
+>   );
+> }
+> ```
 
 #### 📦 Initial & Fallback Data
 
