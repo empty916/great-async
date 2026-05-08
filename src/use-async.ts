@@ -183,6 +183,9 @@ export const useAsync = <F extends PromiseFunction>(
     id: {},
     hasIncremented: false,
   });
+  // Track the cache key of the most recent call so background updates
+  // for stale keys can be ignored (avoids data flash from old params).
+  const latestKeyRef = useRef<string>('');
   const argsRef = useRef({
     asyncFn,
     deps: undefined as DependencyList | undefined,
@@ -290,12 +293,19 @@ export const useAsync = <F extends PromiseFunction>(
       ...createAsyncOpts,
       id,  // override frozen id with current value
       swr,
-      onBackgroundUpdateStart: swr ? (cachedData: PickPromiseType<F>) => {
-        // Background update is starting, set backgroundUpdating state
+      onBackgroundUpdateStart: swr ? (_cachedData: PickPromiseType<F>, key?: string) => {
+        // Only set backgroundUpdating for the latest request, otherwise
+        // a stale start followed by a stale completion (both ignored) would
+        // leave backgroundUpdating stuck at true.
+        if (key !== undefined && key !== latestKeyRef.current) return;
         setBackgroundUpdating(true);
       } : undefined,
-      onBackgroundUpdate: swr ? (data: PickPromiseType<F> | undefined, error: AsyncError | undefined) => {
-        // Background update completed, update data and clear background updating state
+      onBackgroundUpdate: swr ? (data: PickPromiseType<F> | undefined, error: AsyncError | undefined, key?: string) => {
+        // Only apply the result if it belongs to the most recent call.
+        // Stale background updates are silently discarded so switching
+        // params mid-flight doesn't flash old data on screen.
+        if (key !== undefined && key !== latestKeyRef.current) return;
+
         if (data !== undefined) {
           setAsyncFunctionState(prev => ({
             ...prev,
@@ -348,6 +358,7 @@ export const useAsync = <F extends PromiseFunction>(
         // 2. WeakMapCacheManager.peek (via fnProxyRef) — covers the default
         //    WeakMap mode keyed by the fnProxy from createAsync.
         const cacheKey = (createAsyncOpts.genKeyByParams || defaultGenKeyByParams)(args);
+        latestKeyRef.current = cacheKey;
         const hasSWRCache = swr && !!(
           getCachedData(cacheKey)
           || WeakMapCacheManager.peek(fnProxyRef.current, cacheKey, {
