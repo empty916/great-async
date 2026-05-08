@@ -181,6 +181,357 @@ test('should share pending state with same pendingId', async () => {
 
 });
 
+  describe('pendingId integration', () => {
+    test('should reflect shared pending=false on error', async () => {
+      const fetchWithError = async () => {
+        await sleep(10);
+        throw new Error('fail');
+      };
+
+      const App = () => {
+        const { pending, error } = useAsync(fetchWithError, {
+          pendingId: 'err-app',
+        });
+        if (pending) return <span role="loading">loading</span>;
+        return <div role="app">{error ? error.message : 'ok'}</div>;
+      };
+
+      render(<App />);
+      expect(sharePending.isPending('err-app')).toBe(true);
+      expect(screen.getByRole('loading')).toBeInTheDocument();
+
+      await waitFor(() => screen.getByRole('app'));
+      expect(screen.getByRole('app')).toHaveTextContent('fail');
+      expect(sharePending.isPending('err-app')).toBe(false);
+    });
+
+    test('should increment/decrement shared counter for first SWR load, not background revalidation', async () => {
+      let callCount = 0;
+      const fetchData = async () => {
+        callCount++;
+        await sleep(20);
+        return { value: callCount };
+      };
+
+      const App = () => {
+        const { pending, data, fn } = useAsync(fetchData, {
+          pendingId: 'swr-ld',
+          cache: { ttl: 1000, swr: true },
+        });
+        if (pending) return <span role="loading">loading</span>;
+        return (
+          <div role="app">
+            <span>{data?.value}</span>
+            <button role="refresh" onClick={() => fn()}>Refresh</button>
+          </div>
+        );
+      };
+
+      render(<App />);
+      expect(sharePending.isPending('swr-ld')).toBe(true);
+      expect(screen.getByRole('loading')).toBeInTheDocument();
+
+      await waitFor(() => screen.getByRole('app'));
+      expect(screen.getByRole('app')).toHaveTextContent('1');
+      expect(sharePending.isPending('swr-ld')).toBe(false);
+
+      // Background revalidation: should NOT set shared pending
+      await act(async () => {
+        fireEvent.click(screen.getByRole('refresh'));
+      });
+      expect(sharePending.isPending('swr-ld')).toBe(false);
+      expect(screen.queryByRole('loading')).toBeNull();
+      await waitFor(() => expect(callCount).toBe(2));
+      expect(sharePending.isPending('swr-ld')).toBe(false);
+    });
+
+    test('should increment/decrement shared counter for auto=false manual calls', async () => {
+      const fetchData = async () => {
+        await sleep(50);
+        return { name: 'tom' };
+      };
+
+      const App = () => {
+        const { pending, data, fn } = useAsync(fetchData, {
+          pendingId: 'manual-ld',
+          auto: false,
+        });
+
+        useEffect(() => {
+          fn();
+        }, []);
+
+        if (pending || !data) return <span role="loading">loading</span>;
+        return <div role="app">{data.name}</div>;
+      };
+
+      render(<App />);
+      await waitFor(() => expect(sharePending.isPending('manual-ld')).toBe(true));
+      await waitFor(() => screen.getByRole('app'));
+      expect(sharePending.isPending('manual-ld')).toBe(false);
+    });
+
+    test('should transition shared counter when pendingId changes dynamically', async () => {
+      const fetchData = async () => {
+        await sleep(30);
+        return { name: 'data' };
+      };
+
+      const App = ({ pid }: { pid: string }) => {
+        const { pending, data } = useAsync(fetchData, { pendingId: pid });
+        if (pending) return <span role="loading">loading</span>;
+        return <div role="app">{data?.name}</div>;
+      };
+
+      const { rerender } = render(<App pid="a" />);
+      expect(sharePending.isPending('a')).toBe(true);
+      expect(sharePending.isPending('b')).toBe(false);
+
+      rerender(<App pid="b" />);
+      expect(sharePending.isPending('a')).toBe(false);
+      expect(sharePending.isPending('b')).toBe(true);
+
+      await waitFor(() => screen.getByRole('app'));
+      expect(sharePending.isPending('b')).toBe(false);
+    });
+
+    test('should clean up shared counter when pendingId changes to empty string', async () => {
+      const fetchData = async () => {
+        await sleep(20);
+        return { name: 'data' };
+      };
+
+      const App = ({ pid }: { pid: string }) => {
+        const { pending, data } = useAsync(fetchData, { pendingId: pid });
+        if (pending) return <span role="loading">loading</span>;
+        return <div role="app">{data?.name}</div>;
+      };
+
+      const { rerender } = render(<App pid="app" />);
+      expect(sharePending.isPending('app')).toBe(true);
+
+      rerender(<App pid="" />);
+      expect(sharePending.isPending('app')).toBe(false);
+
+      await waitFor(() => screen.getByRole('app'));
+    });
+
+    test('should start tracking when pendingId changes from empty to valid', async () => {
+      const fetchData = async (): Promise<{ name: string }> => {
+        await sleep(20);
+        return { name: 'data' };
+      };
+
+      const App = ({ pid }: { pid: string }) => {
+        const { pending, data } = useAsync(fetchData, { pendingId: pid });
+        if (pending) return <span role="loading">loading</span>;
+        return <div role="app">{data?.name}</div>;
+      };
+
+      const { rerender } = render(<App pid="" />);
+      await waitFor(() => screen.getByRole('app'));
+      expect(sharePending.isPending('late-app')).toBe(false);
+
+      rerender(<App pid="late-app" />);
+      expect(sharePending.isPending('late-app')).toBe(false);
+    });
+
+    test('should decrement shared counter on unmount while pending', async () => {
+      const fetchData = async () => {
+        await sleep(100);
+        return { name: 'data' };
+      };
+
+      const App = () => {
+        const { pending, data } = useAsync(fetchData, { pendingId: 'unmount-ld' });
+        if (pending) return <span role="loading">loading</span>;
+        return <div role="app">{data?.name}</div>;
+      };
+
+      const { unmount } = render(<App />);
+      expect(sharePending.isPending('unmount-ld')).toBe(true);
+      expect(screen.getByRole('loading')).toBeInTheDocument();
+
+      unmount();
+      expect(sharePending.isPending('unmount-ld')).toBe(false);
+    });
+
+    test('should not cause counter drift with debounced calls', async () => {
+      let times = 0;
+      const fetchData = async () => {
+        times++;
+        await sleep(10);
+        return { name: `data-${times}` };
+      };
+
+      const App = () => {
+        const { pending, data, fn } = useAsync(fetchData, {
+          pendingId: 'debounce-ld',
+          auto: false,
+          debounce: { time: 50 },
+        });
+
+        return (
+          <div>
+            {pending && <span role="loading">loading</span>}
+            {data && <span role="data">{data.name}</span>}
+            <button role="call" onClick={() => fn()}>Call</button>
+          </div>
+        );
+      };
+
+      render(<App />);
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('call'));
+        fireEvent.click(screen.getByRole('call'));
+        fireEvent.click(screen.getByRole('call'));
+      });
+
+      await waitFor(() => screen.getByRole('data'));
+      await waitFor(() => expect(sharePending.isPending('debounce-ld')).toBe(false));
+    });
+
+    test('should reflect shared pending across deps changes', async () => {
+      const fetchUser = async (id: number) => {
+        await sleep(10);
+        return { id, name: `user-${id}` };
+      };
+
+      const App = () => {
+        const [userId, setUserId] = useState(1);
+        const { pending, data } = useAsync(
+          () => fetchUser(userId),
+          {
+            pendingId: 'deps-ld',
+            deps: [userId],
+          },
+        );
+        if (pending || !data) return <span role="loading">loading</span>;
+        return (
+          <div role="app">
+            <span>{data.name}</span>
+            <button role="change" onClick={() => setUserId(v => v + 1)}>Next</button>
+          </div>
+        );
+      };
+
+      render(<App />);
+      expect(sharePending.isPending('deps-ld')).toBe(true);
+      await waitFor(() => screen.getByRole('app'));
+      expect(screen.getByRole('app')).toHaveTextContent('user-1');
+      expect(sharePending.isPending('deps-ld')).toBe(false);
+
+      fireEvent.click(screen.getByRole('change'));
+      await waitFor(() => expect(sharePending.isPending('deps-ld')).toBe(true));
+      await waitFor(() => screen.getByRole('app'));
+      expect(screen.getByRole('app')).toHaveTextContent('user-2');
+      expect(sharePending.isPending('deps-ld')).toBe(false);
+    });
+
+    test('showPending/hidePending should stack correctly', () => {
+      useAsync.showPending('stack');
+      expect(sharePending.isPending('stack')).toBe(true);
+
+      useAsync.showPending('stack');
+      useAsync.showPending('stack');
+
+      useAsync.hidePending('stack');
+      expect(sharePending.isPending('stack')).toBe(true);
+
+      useAsync.hidePending('stack');
+      expect(sharePending.isPending('stack')).toBe(true);
+
+      useAsync.hidePending('stack');
+      expect(sharePending.isPending('stack')).toBe(false);
+
+      useAsync.hidePending('stack');
+      expect(sharePending.isPending('stack')).toBe(false);
+    });
+
+    test('should keep composed pending=true while any sibling is still pending', async () => {
+      const fastFetch = async () => {
+        await sleep(10);
+        return { name: 'fast' };
+      };
+      const slowFetch = async () => {
+        await sleep(100);
+        return { name: 'slow' };
+      };
+
+      const AppFast = () => {
+        const { pending, data } = useAsync(fastFetch, { pendingId: 'multi' });
+        if (pending) return <span role="loading-fast">loading-fast</span>;
+        return <div role="app-fast">{data?.name}</div>;
+      };
+      const AppSlow = () => {
+        const { pending, data } = useAsync(slowFetch, { pendingId: 'multi' });
+        if (pending) return <span role="loading-slow">loading-slow</span>;
+        return <div role="app-slow">{data?.name}</div>;
+      };
+
+      render(
+        <>
+          <AppFast />
+          <AppSlow />
+        </>,
+      );
+
+      expect(sharePending.isPending('multi')).toBe(true);
+      expect(screen.getByRole('loading-fast')).toBeInTheDocument();
+      expect(screen.getByRole('loading-slow')).toBeInTheDocument();
+
+      // Wait past fast's resolve time. Fast resolved but sharedPendingState
+      // is still true (slow still pending), so composedPendingState keeps
+      // loading-fast visible.
+      await sleep(30);
+      expect(sharePending.isPending('multi')).toBe(true);
+      expect(screen.getByRole('loading-fast')).toBeInTheDocument();
+      expect(screen.getByRole('loading-slow')).toBeInTheDocument();
+
+      // Wait for slow to finish — now both show data
+      await waitFor(() => screen.getByRole('app-slow'));
+      expect(screen.getByRole('app-fast')).toBeInTheDocument();
+      expect(sharePending.isPending('multi')).toBe(false);
+    });
+
+    test('multiple components, same pendingId, different timing', async () => {
+      const fastFetch = async () => {
+        await sleep(10);
+        return { name: 'fast' };
+      };
+      const slowFetch = async () => {
+        await sleep(60);
+        return { name: 'slow' };
+      };
+
+      const AppFast = () => {
+        const { pending, data } = useAsync(fastFetch, { pendingId: 'multi2' });
+        if (pending) return <span role="fast-loading">fast-loading</span>;
+        return <div role="fast-app">{data?.name}</div>;
+      };
+      const AppSlow = () => {
+        const { pending, data } = useAsync(slowFetch, { pendingId: 'multi2' });
+        if (pending) return <span role="slow-loading">slow-loading</span>;
+        return <div role="slow-app">{data?.name}</div>;
+      };
+
+      render(
+        <>
+          <AppFast />
+          <AppSlow />
+        </>,
+      );
+
+      expect(screen.getByRole('fast-loading')).toBeInTheDocument();
+      expect(screen.getByRole('slow-loading')).toBeInTheDocument();
+
+      await waitFor(() => screen.getByRole('slow-app'));
+      await waitFor(() => screen.getByRole('fast-app'));
+      expect(sharePending.isPending('multi2')).toBe(false);
+    });
+  }); // end describe('pendingId integration')
+
 test('should cache data with TTL configuration', async () => {
     let times = 0;
     const getUserInfo = async () => {

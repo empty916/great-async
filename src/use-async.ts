@@ -277,9 +277,6 @@ export const useAsync = <F extends PromiseFunction>(
     if (asyncFunctionState.pending && !stateRef.current.hasIncremented) {
       sharePending.increment(pendingId);
       stateRef.current.hasIncremented = true;
-    } else if (!asyncFunctionState.pending && stateRef.current.hasIncremented) {
-      sharePending.decrement(pendingId);
-      stateRef.current.hasIncremented = false;
     }
 
     return () => {
