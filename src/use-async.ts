@@ -271,9 +271,6 @@ export const useAsync = <F extends PromiseFunction>(
     if (asyncFunctionState.loading && !stateRef.current.hasIncremented) {
       shareLoading.increment(loadingId);
       stateRef.current.hasIncremented = true;
-    } else if (!asyncFunctionState.loading && stateRef.current.hasIncremented) {
-      shareLoading.decrement(loadingId);
-      stateRef.current.hasIncremented = false;
     }
 
     return () => {
