@@ -596,3 +596,141 @@ test('recreate', async () => {
 	});
 	expect(createAsync(getUserData)).not.toBe(getUserData);
 });
+
+test('SWR onBackgroundUpdate receives key parameter', async () => {
+	const onBgUpdateStart = jest.fn();
+	const onBgUpdate = jest.fn();
+
+	const fetchUser = async (id: string) => {
+		await sleep(20);
+		return { id, fresh: true };
+	};
+
+	const enhanced = createAsync(fetchUser, {
+		ttl: 1000,
+		swr: true,
+		onBackgroundUpdateStart: onBgUpdateStart,
+		onBackgroundUpdate: onBgUpdate,
+	});
+
+	// First call: populate cache
+	await enhanced('user-1');
+
+	// Second call: SWR cache hit, triggers background update with key
+	await enhanced('user-1');
+	await sleep(80); // wait for background update to complete
+
+	// onBackgroundUpdateStart should receive cached data and key
+	expect(onBgUpdateStart).toHaveBeenCalledTimes(1);
+	expect(onBgUpdateStart).toHaveBeenCalledWith(
+		{ id: 'user-1', fresh: true },
+		expect.stringContaining('user-1'),
+	);
+
+	// onBackgroundUpdate should receive fresh data, no error, and key
+	expect(onBgUpdate).toHaveBeenCalledTimes(1);
+	expect(onBgUpdate).toHaveBeenCalledWith(
+		{ id: 'user-1', fresh: true },
+		undefined,
+		expect.stringContaining('user-1'),
+	);
+});
+
+test('SWR onBackgroundUpdate receives key on error', async () => {
+	const onBgUpdate = jest.fn();
+
+	let shouldFail = false;
+	const fetchUser = async (id: string) => {
+		await sleep(20);
+		if (shouldFail) throw new Error('fetch failed');
+		return { id, fresh: true };
+	};
+
+	const enhanced = createAsync(fetchUser, {
+		ttl: 1000,
+		swr: true,
+		onBackgroundUpdate: onBgUpdate,
+	});
+
+	// Populate cache
+	await enhanced('user-1');
+
+	// Trigger SWR with error
+	shouldFail = true;
+	await enhanced('user-1');
+	await sleep(80);
+
+	// onBackgroundUpdate should receive undefined data, the error, and key
+	expect(onBgUpdate).toHaveBeenCalledTimes(1);
+	const [data, error, key] = onBgUpdate.mock.calls[0];
+	expect(data).toBeUndefined();
+	expect(error.message).toBe('fetch failed');
+	expect(key).toEqual(expect.stringContaining('user-1'));
+});
+
+test('SWR with cacheCapacity evicts least recently used entry on overflow', async () => {
+	let callCount = 0;
+	const fetchUser = async (id: string) => {
+		callCount++;
+		await sleep(10);
+		return { id, call: callCount };
+	};
+
+	const enhanced = createAsync(fetchUser, {
+		cacheCapacity: 2,
+		swr: true,
+	});
+
+	// Fill: A → B → C. C's insert overflows capacity, evicts A (oldest).
+	// LRU now contains B (oldest) and C (newest).
+	await enhanced('A');
+	await enhanced('B');
+	await enhanced('C');
+	const countAfterFill = callCount;
+
+	// Re-fetch A — was evicted, cache miss, normal fetch.
+	// This inserts A and overflows again, evicting B (now the oldest).
+	await enhanced('A');
+	expect(callCount).toBe(countAfterFill + 1);
+
+	// C survived both evictions — SWR cache hit, bg update calls fetcher.
+	await enhanced('C');
+	await sleep(50);
+	expect(callCount).toBe(countAfterFill + 2); // +1 for A fetch, +1 for C bg update
+});
+
+test('SWR with cacheCapacity: get refreshes LRU position preventing eviction', async () => {
+	let callCount = 0;
+	const fetchUser = async (id: string) => {
+		callCount++;
+		await sleep(10);
+		return { id, call: callCount };
+	};
+
+	const enhanced = createAsync(fetchUser, {
+		cacheCapacity: 2,
+		swr: true,
+	});
+
+	// Populate A then B. LRU order: A (oldest), B (newest)
+	await enhanced('A');
+	await enhanced('B');
+
+	// Access A via SWR — get() refreshes LRU: B (oldest), A (newest)
+	await enhanced('A');
+	await sleep(50); // let bg update finish
+
+	// Add C — capacity overflow, oldest (B) is evicted
+	await enhanced('C');
+
+	// B was evicted — cache miss, normal fetch
+	const beforeB = callCount;
+	await enhanced('B');
+	expect(callCount).toBe(beforeB + 1);
+
+	// A is still in cache — SWR cache hit
+	await enhanced('A');
+	await sleep(50);
+	// bg update for A calls fetcher once
+	expect(callCount).toBe(beforeB + 2);
+});

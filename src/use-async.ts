@@ -190,6 +190,9 @@ export const useAsync = <F extends PromiseFunction>(
     id: {},
     hasIncremented: false,
   });
+  // Track the cache key of the most recent call so background updates
+  // for stale keys can be ignored (avoids data flash from old params).
+  const latestKeyRef = useRef<string>('');
   const argsRef = useRef({
     asyncFn,
     deps: undefined as DependencyList | undefined,
@@ -301,13 +304,15 @@ export const useAsync = <F extends PromiseFunction>(
       },
       lifecycle: {
         ...createAsyncOpts.lifecycle,
-        onBackgroundUpdateStart: swr ? (cachedData: PickPromiseType<F>) => {
-          // Background update is starting, set backgroundUpdating state
+        onBackgroundUpdateStart: swr ? (_cachedData: PickPromiseType<F>, key?: string) => {
+          // Only track backgroundUpdating for the latest request
+          if (key !== undefined && key !== latestKeyRef.current) return;
           setBackgroundUpdating(true);
-          createAsyncOpts.lifecycle?.onBackgroundUpdateStart?.(cachedData);
+          createAsyncOpts.lifecycle?.onBackgroundUpdateStart?.(_cachedData);
         } : createAsyncOpts.lifecycle?.onBackgroundUpdateStart,
-        onBackgroundUpdate: swr ? (data: PickPromiseType<F> | undefined, error: AsyncError | undefined) => {
-          // Background update completed, update data and clear background updating state
+        onBackgroundUpdate: swr ? (data: PickPromiseType<F> | undefined, error: AsyncError | undefined, key?: string) => {
+          // Only apply the result if it belongs to the most recent call
+          if (key !== undefined && key !== latestKeyRef.current) return;
           if (data !== undefined) {
             setAsyncFunctionState(prev => ({
               ...prev,
@@ -323,7 +328,7 @@ export const useAsync = <F extends PromiseFunction>(
           }
           setBackgroundUpdating(false);
           argsRef.current.onBackgroundUpdate?.(data, error);
-          createAsyncOpts.lifecycle?.onBackgroundUpdate?.(data, error);
+          createAsyncOpts.lifecycle?.onBackgroundUpdate?.(data, error, key);
         } : createAsyncOpts.lifecycle?.onBackgroundUpdate,
         beforeRun:
           createAsyncOpts.debounce?.time !== -1 ||
@@ -365,6 +370,7 @@ export const useAsync = <F extends PromiseFunction>(
         // 2. WeakMapCacheManager.peek (via fnProxyRef) — covers the default
         //    WeakMap mode keyed by the fnProxy from createAsync.
         const cacheKey = (createAsyncOpts.cache?.keyGenerator || defaultGenKeyByParams)(args);
+        latestKeyRef.current = cacheKey;
         const hasSWRCache = swr && !!(
           getCachedData(cacheKey)
           || WeakMapCacheManager.peek(fnProxyRef.current, cacheKey, {

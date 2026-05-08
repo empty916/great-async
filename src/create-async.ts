@@ -108,14 +108,16 @@ export interface LifecycleConfig<F extends PromiseFunction = PromiseFunction> {
   /**
    * Callback when background update starts (SWR mode)
    * @param cachedData The cached data being returned immediately
+   * @param key The cache key for this update (useful for staleness checks)
    */
-  onBackgroundUpdateStart?: (cachedData: PickPromiseType<F>) => void;
+  onBackgroundUpdateStart?: (cachedData: PickPromiseType<F>, key?: string) => void;
   /**
    * Callback when background update completes (SWR mode)
    * @param data The updated data (undefined if error occurred)
    * @param error The error if update failed (undefined if successful)
+   * @param key The cache key for this update (useful for staleness checks)
    */
-  onBackgroundUpdate?: (data: PickPromiseType<F> | undefined, error: AsyncError | undefined) => void;
+  onBackgroundUpdate?: (data: PickPromiseType<F> | undefined, error: AsyncError | undefined, key?: string) => void;
 }
 
 /**
@@ -123,6 +125,7 @@ export interface LifecycleConfig<F extends PromiseFunction = PromiseFunction> {
  * @deprecated Use the new grouped structure instead. Will be removed in v3.0.0
  */
 export interface LegacyCreateAsyncOptions<F extends PromiseFunction> {
+
   /**
    * @deprecated Use cache.ttl instead
    */
@@ -479,7 +482,7 @@ export function createAsync<F extends PromiseFunction>(
       const cachedPromise = Promise.resolve(cache.value) as ReturnType<F>;
 
       // Notify that background update is starting
-      onBackgroundUpdateStart?.(cache.value);
+      onBackgroundUpdateStart?.(cache.value, key);
 
       // Start background update through the full execution pipeline
       // (single dedup, debounce, retry, takeLatest) — so rapid calls
@@ -487,9 +490,9 @@ export function createAsync<F extends PromiseFunction>(
       const backgroundUpdate = async () => {
         try {
           const freshData = await executeAsync();
-          onBackgroundUpdate?.(freshData, undefined);
+          onBackgroundUpdate?.(freshData, undefined, key);
         } catch (error) {
-          onBackgroundUpdate?.(undefined, error);
+          onBackgroundUpdate?.(undefined, error, key);
         }
       };
 
