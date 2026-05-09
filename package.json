@@ -1,6 +1,6 @@
 {
   "name": "great-async",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "make async great again",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -65,8 +65,8 @@
     "test": "jest",
     "build": "rimraf dist && tsc -p tsconfig.build.json",
     "prepublish": "npm run test && npm run build",
-    "pub": "npm publish --tag next",
-    "pub:release": "npm publish"
+    "pub": "yarn publish --tag next",
+    "pub:release": "yarn publish"
   },
   "files": [
     "dist",
