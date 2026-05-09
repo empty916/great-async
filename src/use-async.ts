@@ -421,6 +421,8 @@ export const useAsync = <F extends PromiseFunction>(
           });
           if (throwError) {
             throw err;
+          } else {
+            console.warn(err);
           }
         }
       };
