@@ -1,6 +1,6 @@
 {
   "name": "great-async",
-  "version": "2.0.0-beta8",
+  "version": "2.0.0-beta9",
   "description": "Framework-agnostic async utilities with React hooks, caching, SWR, debouncing, and more. Features modern 'pending' state for better semantics.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -35,8 +35,8 @@
     "test": "jest",
     "build": "rimraf dist && tsc -p tsconfig.build.json",
     "prepublish": "npm run test && npm run build",
-    "pub": "npm publish --tag next",
-    "pub:release": "npm publish"
+    "pub": "yarn publish --tag next",
+    "pub:release": "yarn publish"
   },
   "files": [
     "dist",
