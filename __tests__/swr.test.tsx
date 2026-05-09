@@ -140,8 +140,7 @@ test('should return cached data immediately and update with fresh data in backgr
 
     const App = () => {
         const { loading, data, backgroundUpdating, fn } = useAsync(fetchUser, {
-            ttl: 1000,
-            swr: true,
+            cache: { ttl: 1000, swr: true },
         });
         if (loading) return <span role="loading">loading</span>;
         return (
@@ -192,8 +191,7 @@ test('should discard stale background update when params change rapidly', async 
     const App = () => {
         const { loading, data, backgroundUpdating, fn } = useAsync(fetchUser, {
             auto: false,
-            ttl: 1000,
-            swr: true,
+            cache: { ttl: 1000, swr: true },
         });
         return (
             <div>
@@ -271,9 +269,8 @@ test('should only call user onBackgroundUpdate for the latest request', async ()
     const App = () => {
         const { loading, data, backgroundUpdating, fn } = useAsync(fetchUser, {
             auto: false,
-            ttl: 1000,
-            swr: true,
-            onBackgroundUpdate: userOnBgUpdate,
+            cache: { ttl: 1000, swr: true },
+            lifecycle: { onBackgroundUpdate: userOnBgUpdate },
         });
         return (
             <div>
@@ -327,8 +324,7 @@ test('should preserve cached data when background update errors', async () => {
 
     const App = () => {
         const { loading, data, error, backgroundUpdating, fn } = useAsync(fetchUser, {
-            ttl: 1000,
-            swr: true,
+            cache: { ttl: 1000, swr: true },
         });
         if (loading) return <span role="loading">loading</span>;
         return (
@@ -372,8 +368,7 @@ test('should clear error on successful background update', async () => {
 
     const App = () => {
         const { loading, data, error, backgroundUpdating, fn } = useAsync(fetchUser, {
-            ttl: 1000,
-            swr: true,
+            cache: { ttl: 1000, swr: true },
             initialData: { id: 'initial', name: 'init' },
         });
         if (loading) return <span role="loading">loading</span>;
@@ -424,8 +419,7 @@ test('should not flash loading on deps change when cache exists', async () => {
             {
                 id: `user-${userId}`,
                 deps: [userId],
-                ttl: 1000,
-                swr: true,
+                cache: { ttl: 1000, swr: true },
             }
         );
         if (loading || !data) return <span role="loading">loading</span>;
