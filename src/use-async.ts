@@ -325,7 +325,6 @@ export const useAsync = <F extends PromiseFunction>(
           }
           setBackgroundUpdating(false);
           argsRef.current.onBackgroundUpdate?.(data, error);
-          createAsyncOpts.lifecycle?.onBackgroundUpdate?.(data, error, key);
         } : createAsyncOpts.lifecycle?.onBackgroundUpdate,
         beforeRun:
           createAsyncOpts.debounce?.time !== -1 ||
